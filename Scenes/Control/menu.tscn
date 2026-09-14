@@ -10,8 +10,3 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_fc1kg")
-
-[node name="Button" type="Button" parent="." unique_id=1672966960]
-layout_mode = 0
-offset_right = 8.0
-offset_bottom = 8.0

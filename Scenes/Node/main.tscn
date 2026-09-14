@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://c1dinama1n03u"]
+
+[ext_resource type="Script" uid="uid://bxgp1lbb32y6w" path="res://Script/Node/Main.cs" id="1_m325n"]
+[ext_resource type="PackedScene" uid="uid://ct4qiqxpilheg" path="res://Scenes/Control/Code.tscn" id="2_j4h5q"]
+
+[node name="Main" type="Node" unique_id=449138742]
+script = ExtResource("1_m325n")
+CodeScene = ExtResource("2_j4h5q")

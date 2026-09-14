@@ -11,11 +11,13 @@ config_version=5
 [application]
 
 config/name="IsesPrototipo"
+run/main_scene="uid://bm8p5kcqgbom7"
 config/features=PackedStringArray("4.7", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [display]
 
+window/subwindows/embed_subwindows=false
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
