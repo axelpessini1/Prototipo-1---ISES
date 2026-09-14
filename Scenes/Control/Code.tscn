@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c7wp7fnsgqckk" path="res://Script/Control/Code.cs" id="1_p03nh"]
 
-[node name="Code" type="Control" unique_id=394592396]
+[node name="Code" type="Control" unique_id=394592396 node_paths=PackedStringArray("CodeEditor", "ErrorPanel")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -10,10 +10,27 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_p03nh")
+CodeEditor = NodePath("VBoxContainer/TextEditor")
+ErrorPanel = NodePath("VBoxContainer/CompiladorErrors")
 
-[node name="TextEditor" type="TextEdit" parent="." unique_id=930301702]
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=786249419]
 layout_mode = 1
-anchors_preset = 10
+anchors_preset = 15
 anchor_right = 1.0
-offset_bottom = 560.0
+anchor_bottom = 1.0
 grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TextEditor" type="TextEdit" parent="VBoxContainer" unique_id=930301702]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Ejecutar" type="Button" parent="VBoxContainer" unique_id=1760103761]
+layout_mode = 2
+text = "Ejecutar"
+
+[node name="CompiladorErrors" type="RichTextLabel" parent="VBoxContainer" unique_id=908700646]
+layout_mode = 2
+size_flags_vertical = 3
+
+[connection signal="pressed" from="VBoxContainer/Ejecutar" to="." method="_on_ejecutar_pressed"]
