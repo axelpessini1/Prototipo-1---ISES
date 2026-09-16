@@ -1,80 +1,53 @@
 using Godot;
-using System;
-using System.Diagnostics;
-using System.IO;
 using System.Threading.Tasks;
 
 public partial class Code : Control
 {
-    [Export]
-    public TextEdit CodeEditor { get; set; }
+	[Export]
+	public TextEdit CodeEditor { get; set; }
 
-    [Export]
-    public RichTextLabel Output { get; set; }
+	[Export]
+	public RichTextLabel Output { get; set; }
 
-    private string RutaPython;
+	[Export]
+	public GameCommandExecutor CommandExecutor { get; set; }
 
-    public override void _Ready()
-    {
-        // Ruta del archivo Python dentro del proyecto
-        RutaPython = ProjectSettings.GlobalizePath(
-            "res://Python/ejecutar.py"
-        );
-    }
+	private PythonExecutor pythonExecutor;
 
-    private async void _on_ejecutar_button_pressed()
-    {
-        await EjecutarPython();
-    }
+	public override void _Ready()
+	{
+		pythonExecutor = new PythonExecutor();
+	}
 
-    private async Task EjecutarPython()
-    {
-        string codigo = CodeEditor.Text;
+	private async void _on_ejecutar_button_pressed()
+	{
+		string codigo = CodeEditor.Text;
 
-        ProcessStartInfo psi = new ProcessStartInfo
-        {
-            FileName = "python",
-            Arguments = $"\"{RutaPython}\"",
+		PythonResult resultado =
+			await pythonExecutor.EjecutarAsync(codigo);
 
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
+		if (resultado.Ok)
+		{
+			Output.Text = resultado.Output;
 
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+			GD.Print("Código ejecutado correctamente.");
 
-        try
-        {
-            using Process proceso = new Process();
+			GD.Print("Cantidad de comandos: " + resultado.Commands.Count);
 
-            proceso.StartInfo = psi;
+			foreach (Variant comandoVariant in resultado.Commands)
+			{
+				GD.Print("Comando recibido: " + comandoVariant);
+			}
 
-            proceso.Start();
+			if (CommandExecutor == null)
+			{
+				GD.PrintErr("ERROR: CommandExecutor no está asignado.");
+				return;
+			}
 
-            // Enviar el código escrito por el jugador
-            await proceso.StandardInput.WriteAsync(codigo);
-            proceso.StandardInput.Close();
-
-            // Leer la salida de Python
-            string salida = await proceso.StandardOutput.ReadToEndAsync();
-
-            // Leer errores del proceso
-            string errores = await proceso.StandardError.ReadToEndAsync();
-
-            await proceso.WaitForExitAsync();
-
-            if (!string.IsNullOrEmpty(errores))
-            {
-                Output.Text = errores;
-                return;
-            }
-
-            Output.Text = salida;
-        }
-        catch (Exception e)
-        {
-            Output.Text = "Error al ejecutar Python:\n" + e.Message;
-        }
-    }
+			await CommandExecutor.EjecutarComandos(
+				resultado.Commands
+			);
+		}
+	}
 }
