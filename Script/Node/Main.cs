@@ -42,7 +42,7 @@ public partial class Main : Node
 		Code editor = CodeScene.Instantiate<Code>();
 
 		// Le pasamos el Player de Main a Code
-		editor.SetPlayer(player);
+		//editor.SetPlayer(player);
 
 		ventana.AddChild(editor);
 
