@@ -13,24 +13,49 @@ public partial class Code : Control
 
     private Player player;
 
+    private void BuscarPlayer()
+    {
+        player = null;
+
+        var jugadores = GetTree().GetNodesInGroup("player");
+
+        GD.Print(
+            $"CODE: Players encontrados: {jugadores.Count}"
+        );
+
+        foreach (Node node in jugadores)
+        {
+            if (node is Player candidato)
+            {
+                GD.Print(
+                    $"CODE: Player {candidato.Name} | " +
+                    $"autoridad = {candidato.IsMultiplayerAuthority()}"
+                );
+
+                if (candidato.IsMultiplayerAuthority())
+                {
+                    player = candidato;
+
+                    GD.Print(
+                        $"CODE: Player asignado: {player.Name}"
+                    );
+
+                    return;
+                }
+            }
+        }
+
+        GD.PrintErr(
+            "CODE: no se encontró un Player con autoridad local."
+        );
+    }
+
     public override void _Ready()
     {
         pythonExecutor = new PythonExecutor();
 
-        player = GetNodeOrNull<Player>("../../Player");
+        CallDeferred(nameof(BuscarPlayer));
 
-        if (player == null)
-        {
-            GD.PrintErr(
-                "CODE: no se encontró Player."
-            );
-        }
-        else
-        {
-            GD.Print(
-                $"CODE: Player encontrado: {player.Name}"
-            );
-        }
     }
 
     private async void _on_ejecutar_button_pressed()
@@ -98,19 +123,40 @@ public partial class Code : Control
         }
     }
 
+    private Player ObtenerPlayer()
+    {
+        if (player != null &&
+            GodotObject.IsInstanceValid(player))
+        {
+            return player;
+        }
+
+        var jugadores = GetTree().GetNodesInGroup("player");
+
+        foreach (Node node in jugadores)
+        {
+            if (node is Player candidato &&
+                candidato.IsMultiplayerAuthority())
+            {
+                player = candidato;
+
+                GD.Print(
+                    $"CODE: Player asignado: {player.Name}"
+                );
+
+                return player;
+            }
+        }
+
+        return null;
+    }
+
     private async Task EjecutarMovimiento(
         string direccion,
         int cantidad
     )
     {
-        if (player == null)
-        {
-            GD.PrintErr(
-                "CODE: Player no está asignado."
-            );
-
-            return;
-        }
+        ObtenerPlayer();
 
         Vector2I direccionVector;
 

@@ -11,10 +11,6 @@ script = ExtResource("1_rw382")
 [node name="TileMap-Mapa" parent="." unique_id=391536933 instance=ExtResource("2_d5x67")]
 
 [node name="Editor" parent="." unique_id=891959059 instance=ExtResource("3_rw382")]
-visible = false
-
-[node name="Code" parent="Editor" index="0" unique_id=394592396]
-visible = false
 
 [node name="Main" parent="." unique_id=449138742 instance=ExtResource("5_8yng0")]
 SpawnPoints = Array[Vector2]([Vector2(0, 0), Vector2(0, 0), Vector2(0, 0), Vector2(0, 0)])

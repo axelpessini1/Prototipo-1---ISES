@@ -57,20 +57,29 @@ public partial class Player : CharacterBody2D
 
     public override void _EnterTree()
     {
-        // El nombre del nodo es el peer ID (lo asigna Main al spawnear)
+        AddToGroup("player");
+
         if (int.TryParse(Name, out int peerId))
         {
             SetMultiplayerAuthority(peerId);
-            GD.Print($"Player {Name}: autoridad = {peerId}, soy autoridad? {IsMultiplayerAuthority()}");
+
+            GD.Print(
+                $"Player {Name}: autoridad = {peerId}, " +
+                $"soy autoridad? {IsMultiplayerAuthority()}"
+            );
         }
         else
         {
-            GD.PushWarning($"Player: no se pudo parsear el nombre '{Name}' como peer ID.");
+            GD.PushWarning(
+                $"Player: no se pudo parsear el nombre '{Name}' como peer ID."
+            );
         }
     }
 
     public override void _Ready()
     {
+        AddToGroup("player");
+
         Position = SnapToGrid(Position);
         _targetPosition = Position;
 

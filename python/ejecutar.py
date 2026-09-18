@@ -11,7 +11,7 @@ from serializador import crear_resultado
 
 def ejecutar_codigo(codigo):
     api = GameAPI()
-
+    
     entorno = {
         "moveRight": api.moveRight,
         "moveLeft": api.moveLeft,

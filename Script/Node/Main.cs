@@ -12,6 +12,7 @@ public partial class Main : Node
 	[Export] public MultiplayerSpawner PlayerSpawner { get; set; }
 
 	[Export]
+
 	public Godot.Collections.Array<Vector2> SpawnPoints { get; set; } = new()
 	{
 		new Vector2(160, 160),
@@ -46,6 +47,7 @@ public partial class Main : Node
 	private Node CustomSpawnFunction(Variant data)
 	{
 		var dict = data.AsGodotDictionary();
+
 		long peerId = (long)dict["peer_id"];
 		Vector2 position = dict["position"].AsVector2();
 
@@ -56,12 +58,20 @@ public partial class Main : Node
 		}
 
 		var player = PlayerScene.Instantiate<Player>();
-		player.Name = peerId.ToString(); // El nombre debe ser el peer ID para la autoridad
+
+		player.Name = peerId.ToString();
 		player.Position = position;
 
-		// ✅ Establecer la autoridad AQUÍ antes de que el nodo entre al árbol
-		// Esto es clave para que el MultiplayerSynchronizer funcione correctamente.
+		// Autoridad del jugador
 		player.SetMultiplayerAuthority((int)peerId);
+
+		// Registrar jugador
+		player.AddToGroup("player");
+
+		GD.Print(
+			$"Main: creando Player {player.Name} " +
+			$"con autoridad {peerId}"
+		);
 
 		return player;
 	}
@@ -172,7 +182,7 @@ public partial class Main : Node
 	// SPAWN
 	// ============================================================
 
-	
+
 	private Vector2 GetSpawnPoint(long peerId)
 	{
 		int index = (int)(peerId - 1) % SpawnPoints.Count;
