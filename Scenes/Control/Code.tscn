@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://c7wp7fnsgqckk" path="res://Script/Control/Code.cs" id="1_p03nh"]
 [ext_resource type="PackedScene" uid="uid://dshaha4hec3xa" path="res://Scenes/Node/game_command_executor.tscn" id="2_jjr5l"]
 
-[node name="Code" type="Control" unique_id=394592396 node_paths=PackedStringArray("CodeEditor", "Output", "CommandExecutor")]
+[node name="Code" type="Control" unique_id=394592396 node_paths=PackedStringArray("CodeEditor", "Output")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -13,7 +13,6 @@ grow_vertical = 2
 script = ExtResource("1_p03nh")
 CodeEditor = NodePath("VBoxContainer/TextEditor")
 Output = NodePath("VBoxContainer/CompiladorErrors")
-CommandExecutor = NodePath("GameCommandExecutor")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=786249419]
 layout_mode = 1
@@ -22,6 +21,27 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="MenuBar" type="MenuBar" parent="VBoxContainer" unique_id=835518675]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/MenuBar" unique_id=1494737849]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Button" type="Button" parent="VBoxContainer/MenuBar/HBoxContainer" unique_id=2075837031]
+layout_mode = 2
+text = "File"
+
+[node name="Button2" type="Button" parent="VBoxContainer/MenuBar/HBoxContainer" unique_id=115532920]
+layout_mode = 2
+text = "File"
+
+[node name="Button3" type="Button" parent="VBoxContainer/MenuBar/HBoxContainer" unique_id=2042379844]
+layout_mode = 2
+text = "File"
 
 [node name="TextEditor" type="TextEdit" parent="VBoxContainer" unique_id=930301702]
 layout_mode = 2
@@ -37,4 +57,7 @@ size_flags_vertical = 3
 
 [node name="GameCommandExecutor" parent="." unique_id=159186501 instance=ExtResource("2_jjr5l")]
 
+[connection signal="focus_entered" from="VBoxContainer/TextEditor" to="." method="_on_text_editor_focus_entered"]
+[connection signal="focus_exited" from="VBoxContainer/TextEditor" to="." method="_on_text_editor_focus_exited"]
+[connection signal="text_changed" from="VBoxContainer/TextEditor" to="." method="_on_text_editor_text_changed"]
 [connection signal="pressed" from="VBoxContainer/Ejecutar" to="." method="_on_ejecutar_button_pressed"]

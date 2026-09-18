@@ -149,4 +149,25 @@ public partial class Code : Control
             cantidad
         );
     }
+
+    public void _on_text_editor_text_changed()
+    {
+
+    }
+
+    private void _on_text_editor_focus_entered()
+    {
+        if (player != null)
+        {
+            player.IsWritingCode = true;
+        }
+    }
+
+    private void _on_text_editor_focus_exited()
+    {
+        if (player != null)
+        {
+            player.IsWritingCode = false;
+        }
+    }
 }

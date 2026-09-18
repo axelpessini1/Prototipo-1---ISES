@@ -167,6 +167,17 @@ _data = {
 &"walk_up": SubResource("Animation_pfi15")
 }
 
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_gctxn"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath("AnimationPlayer:current_animation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath("PlayerSprite:flip_h")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+
 [node name="Player" type="CharacterBody2D" unique_id=113068425 node_paths=PackedStringArray("AnimationPlayer")]
 script = ExtResource("1_a7m3c")
 AnimationPlayer = NodePath("AnimationPlayer")
@@ -182,3 +193,7 @@ shape = SubResource("RectangleShape2D_p3wu2")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=946288159]
 libraries/ = SubResource("AnimationLibrary_pfi15")
+speed_scale = 3.2
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1313686860]
+replication_config = SubResource("SceneReplicationConfig_gctxn")
