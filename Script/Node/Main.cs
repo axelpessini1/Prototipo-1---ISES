@@ -5,9 +5,14 @@ public partial class Main : Node
     private const int Port = 7777;
     private const int MaxClients = 4;
 
-    [Export] public Control UI;
-    [Export] public PackedScene PlayerScene;
-    [Export] public Node2D PlayersContainer;
+    [Export]
+    public Control UI { get; set; }
+
+    [Export]
+    public PackedScene PlayerScene { get; set; }
+
+    [Export]
+    public Node2D PlayersContainer { get; set; }
 
     [Export]
     public Godot.Collections.Array<Vector2> SpawnPoints { get; set; } = new()
@@ -20,9 +25,20 @@ public partial class Main : Node
 
     private ENetMultiplayerPeer _peer;
 
+
+    // ============================================================
+    // READY
+    // ============================================================
+
     public override void _Ready()
     {
-        // Crear Players si no fue asignado desde el Inspector
+        GD.Print("================================");
+        GD.Print("MAIN READY");
+        GD.Print($"Main Path: {GetPath()}");
+        GD.Print("================================");
+
+        // Si no asignaste PlayersContainer desde el Inspector,
+        // lo creamos automáticamente.
         if (PlayersContainer == null)
         {
             PlayersContainer = new Node2D
@@ -31,10 +47,35 @@ public partial class Main : Node
             };
 
             AddChild(PlayersContainer);
+
+            GD.Print(
+                "PlayersContainer creado automáticamente."
+            );
         }
 
-        GD.Print("Main listo.");
+        // Mostrar los SpawnPoints reales que tiene Godot.
+        if (SpawnPoints == null || SpawnPoints.Count == 0)
+        {
+            GD.PushWarning(
+                "SpawnPoints está vacío. " +
+                "Los jugadores aparecerán en (0,0)."
+            );
+        }
+        else
+        {
+            GD.Print(
+                $"SpawnPoints encontrados: {SpawnPoints.Count}"
+            );
+
+            for (int i = 0; i < SpawnPoints.Count; i++)
+            {
+                GD.Print(
+                    $"SpawnPoint {i}: {SpawnPoints[i]}"
+                );
+            }
+        }
     }
+
 
     // ============================================================
     // HOST
@@ -44,56 +85,47 @@ public partial class Main : Node
     {
         if (_peer != null)
         {
-            GD.Print("Ya existe una conexión.");
+            GD.Print(
+                "Ya existe una conexión."
+            );
+
             return;
         }
 
         _peer = new ENetMultiplayerPeer();
 
-        Error err = _peer.CreateServer(
+        Error error = _peer.CreateServer(
             Port,
             MaxClients
         );
 
-        if (err != Error.Ok)
+        if (error != Error.Ok)
         {
             GD.PushError(
-                $"CreateServer failed: {err}"
+                $"CreateServer falló: {error}"
             );
 
             _peer = null;
+
             return;
         }
 
         Multiplayer.MultiplayerPeer = _peer;
 
-        // Señales del servidor
+        // Eventos del servidor.
         Multiplayer.PeerConnected += OnPeerConnected;
         Multiplayer.PeerDisconnected += OnPeerDisconnected;
 
-        GD.Print(
-            $"================================"
-        );
+        GD.Print("================================");
+        GD.Print("HOST INICIADO");
+        GD.Print($"ID: {Multiplayer.GetUniqueId()}");
+        GD.Print($"Puerto: {Port}");
+        GD.Print("================================");
 
-        GD.Print(
-            $"HOST iniciado"
-        );
-
-        GD.Print(
-            $"ID: {Multiplayer.GetUniqueId()}"
-        );
-
-        GD.Print(
-            $"Puerto: {Port}"
-        );
-
-        GD.Print(
-            $"================================"
-        );
-
-        // El servidor es peer 1
+        // El servidor también es un jugador.
         SpawnPlayer(1);
     }
+
 
     // ============================================================
     // JOIN
@@ -105,30 +137,34 @@ public partial class Main : Node
     {
         if (_peer != null)
         {
-            GD.Print("Ya existe una conexión.");
+            GD.Print(
+                "Ya existe una conexión."
+            );
+
             return;
         }
 
         _peer = new ENetMultiplayerPeer();
 
-        Error err = _peer.CreateClient(
+        Error error = _peer.CreateClient(
             address,
             Port
         );
 
-        if (err != Error.Ok)
+        if (error != Error.Ok)
         {
             GD.PushError(
-                $"CreateClient failed: {err}"
+                $"CreateClient falló: {error}"
             );
 
             _peer = null;
+
             return;
         }
 
         Multiplayer.MultiplayerPeer = _peer;
 
-        // Señales del cliente
+        // Eventos del cliente.
         Multiplayer.ConnectedToServer +=
             OnConnectedToServer;
 
@@ -138,22 +174,12 @@ public partial class Main : Node
         Multiplayer.ServerDisconnected +=
             OnServerDisconnected;
 
-        GD.Print(
-            $"================================"
-        );
-
-        GD.Print(
-            $"JOIN"
-        );
-
-        GD.Print(
-            $"Servidor: {address}:{Port}"
-        );
-
-        GD.Print(
-            $"================================"
-        );
+        GD.Print("================================");
+        GD.Print("JOIN");
+        GD.Print($"Servidor: {address}:{Port}");
+        GD.Print("================================");
     }
+
 
     // ============================================================
     // PEER CONNECTED
@@ -161,23 +187,28 @@ public partial class Main : Node
 
     private void OnPeerConnected(long id)
     {
-        GD.Print(
-            $"PEER CONECTADO: {id}"
-        );
-
+        GD.Print("================================");
+        GD.Print($"PEER CONECTADO: {id}");
         GD.Print(
             $"¿Soy servidor?: {Multiplayer.IsServer()}"
         );
+        GD.Print("================================");
 
-        // Solamente el servidor controla los jugadores
+        // Solamente el servidor administra los jugadores.
         if (!Multiplayer.IsServer())
             return;
 
-        // Crear jugador del nuevo cliente
-        SpawnPlayer(id);
 
         // --------------------------------------------------------
-        // Enviar al nuevo cliente los jugadores que ya existían
+        // 1. Crear el jugador nuevo
+        // --------------------------------------------------------
+
+        SpawnPlayer(id);
+
+
+        // --------------------------------------------------------
+        // 2. Enviar los jugadores existentes
+        //    a todos los clientes.
         // --------------------------------------------------------
 
         foreach (Node child in PlayersContainer.GetChildren())
@@ -195,22 +226,24 @@ public partial class Main : Node
             if (existingPlayer == null)
                 continue;
 
-            // No necesitamos volver a crear el jugador
-            // que acabamos de crear.
+            // El jugador nuevo ya fue enviado arriba.
             if (existingPeerId == id)
                 continue;
 
             GD.Print(
                 $"Enviando Player existente " +
-                $"{existingPeerId} al nuevo peer {id}"
+                $"{existingPeerId} " +
+                $"a los clientes."
             );
 
-            SpawnPlayerRpc(
+            Rpc(
+                nameof(SpawnPlayerRpc),
                 existingPeerId,
                 existingPlayer.Position
             );
         }
     }
+
 
     // ============================================================
     // PEER DISCONNECTED
@@ -225,8 +258,14 @@ public partial class Main : Node
         if (!Multiplayer.IsServer())
             return;
 
-        RemovePlayerRpc(id);
+        // IMPORTANTE:
+        // Esto sí es un RPC.
+        Rpc(
+            nameof(RemovePlayerRpc),
+            id
+        );
     }
+
 
     // ============================================================
     // CONNECTED TO SERVER
@@ -234,22 +273,17 @@ public partial class Main : Node
 
     private void OnConnectedToServer()
     {
-        GD.Print(
-            $"================================"
-        );
-
-        GD.Print(
-            $"CONECTADO AL SERVIDOR"
-        );
-
+        GD.Print("================================");
+        GD.Print("CONECTADO AL SERVIDOR");
         GD.Print(
             $"Mi ID: {Multiplayer.GetUniqueId()}"
         );
-
         GD.Print(
-            $"================================"
+            $"Main Path: {GetPath()}"
         );
+        GD.Print("================================");
     }
+
 
     // ============================================================
     // CONNECTION FAILED
@@ -264,6 +298,7 @@ public partial class Main : Node
         _peer = null;
     }
 
+
     // ============================================================
     // SERVER DISCONNECTED
     // ============================================================
@@ -277,8 +312,9 @@ public partial class Main : Node
         _peer = null;
     }
 
+
     // ============================================================
-    // SPAWN
+    // SPAWN PLAYER
     // ============================================================
 
     private void SpawnPlayer(long peerId)
@@ -286,16 +322,37 @@ public partial class Main : Node
         Vector2 position =
             GetSpawnPoint(peerId);
 
+        GD.Print("================================");
         GD.Print(
-            $"Servidor: solicitando spawn " +
-            $"para peer {peerId}"
+            $"Servidor: enviando RPC de spawn"
         );
+        GD.Print(
+            $"Peer: {peerId}"
+        );
+        GD.Print(
+            $"Posición: {position}"
+        );
+        GD.Print("================================");
 
-        SpawnPlayerRpc(
+        // IMPORTANTE:
+        //
+        // NO hacemos:
+        //
+        // SpawnPlayerRpc(peerId, position);
+        //
+        // porque eso sería una llamada local.
+        //
+        // Rpc() envía la llamada a los demás peers
+        // y como CallLocal = true también la ejecuta
+        // en el servidor.
+
+        Rpc(
+            nameof(SpawnPlayerRpc),
             peerId,
             position
         );
     }
+
 
     // ============================================================
     // SPAWN RPC
@@ -307,14 +364,24 @@ public partial class Main : Node
     )]
     private void SpawnPlayerRpc(
         long peerId,
-        Vector2 position
-    )
+        Vector2 position)
     {
+        GD.Print("================================");
+        GD.Print("SpawnPlayerRpc RECIBIDO");
         GD.Print(
-            $"SpawnPlayerRpc → " +
-            $"peer {peerId} " +
-            $"posición {position}"
+            $"Peer: {peerId}"
         );
+        GD.Print(
+            $"Posición: {position}"
+        );
+        GD.Print(
+            $"Mi ID: {Multiplayer.GetUniqueId()}"
+        );
+        GD.Print(
+            $"Main Path: {GetPath()}"
+        );
+        GD.Print("================================");
+
 
         // --------------------------------------------------------
         // Evitar duplicados
@@ -330,18 +397,20 @@ public partial class Main : Node
             return;
         }
 
+
         // --------------------------------------------------------
-        // Comprobar escena
+        // Verificar PlayerScene
         // --------------------------------------------------------
 
         if (PlayerScene == null)
         {
             GD.PushError(
-                "PlayerScene no está asignado."
+                "PlayerScene NO está asignado."
             );
 
             return;
         }
+
 
         // --------------------------------------------------------
         // Crear Player
@@ -350,23 +419,43 @@ public partial class Main : Node
         Player player =
             PlayerScene.Instantiate<Player>();
 
+
+        // --------------------------------------------------------
+        // Nombre
+        // --------------------------------------------------------
+
         player.Name =
             peerId.ToString();
+
+
+        // --------------------------------------------------------
+        // Posición
+        // --------------------------------------------------------
 
         player.Position =
             position;
 
+
         // --------------------------------------------------------
-        // Autoridad
+        // Authority
+        //
+        // IMPORTANTE:
+        // Se establece ANTES de AddChild().
         // --------------------------------------------------------
 
         player.SetMultiplayerAuthority(
             (int)peerId
         );
 
+
+        // --------------------------------------------------------
+        // Grupo
+        // --------------------------------------------------------
+
         player.AddToGroup(
             "player"
         );
+
 
         // --------------------------------------------------------
         // Agregar al árbol
@@ -375,6 +464,11 @@ public partial class Main : Node
         PlayersContainer.AddChild(
             player
         );
+
+
+        // --------------------------------------------------------
+        // Debug
+        // --------------------------------------------------------
 
         GD.Print(
             $"Player creado: {peerId}"
@@ -394,6 +488,7 @@ public partial class Main : Node
         );
     }
 
+
     // ============================================================
     // REMOVE PLAYER RPC
     // ============================================================
@@ -403,9 +498,12 @@ public partial class Main : Node
         CallLocal = true
     )]
     private void RemovePlayerRpc(
-        long peerId
-    )
+        long peerId)
     {
+        GD.Print(
+            $"RemovePlayerRpc → {peerId}"
+        );
+
         Node player =
             PlayersContainer.GetNodeOrNull(
                 peerId.ToString()
@@ -427,17 +525,22 @@ public partial class Main : Node
         );
     }
 
+
     // ============================================================
     // SPAWN POINT
     // ============================================================
 
     private Vector2 GetSpawnPoint(
-        long peerId
-    )
+        long peerId)
     {
         if (SpawnPoints == null ||
             SpawnPoints.Count == 0)
         {
+            GD.PushWarning(
+                "No hay SpawnPoints. " +
+                "Usando Vector2.Zero."
+            );
+
             return Vector2.Zero;
         }
 
@@ -445,8 +548,17 @@ public partial class Main : Node
             (int)((peerId - 1) %
             SpawnPoints.Count);
 
-        return SpawnPoints[index];
+        Vector2 position =
+            SpawnPoints[index];
+
+        GD.Print(
+            $"SpawnPoint para peer {peerId}: " +
+            $"{position}"
+        );
+
+        return position;
     }
+
 
     // ============================================================
     // HOST BUTTON
@@ -463,6 +575,7 @@ public partial class Main : Node
         if (UI != null)
             UI.Visible = false;
     }
+
 
     // ============================================================
     // JOIN BUTTON
