@@ -243,7 +243,18 @@ public partial class Code : Control
             $"CODE: mostrando diálogo: {texto}"
         );
 
-        await jugador.MostrarDialogo(texto);
+        jugador.Rpc(
+            nameof(Player.RpcMostrarDialogo),
+            texto,
+            3f
+        );
+
+        // Esperamos para que los comandos Python
+        // sigan ejecutándose en orden.
+        await ToSignal(
+            GetTree().CreateTimer(3f),
+            SceneTreeTimer.SignalName.Timeout
+        );
     }
 
     public void _on_text_editor_text_changed()

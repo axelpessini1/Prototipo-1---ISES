@@ -13,7 +13,8 @@ public partial class Player : CharacterBody2D
     [Export]
     public int PlayerIndex { get; set; } = 1;
 
-    
+    [Export]
+    public Camera2D Camera { get; set; }
 
     private const int CELL_SIZE = 16;
 
@@ -88,6 +89,27 @@ public partial class Player : CharacterBody2D
         _targetPosition = Position;
 
         PlayIdleAnimation();
+
+        // =====================================
+        // CÁMARA
+        // =====================================
+
+        if (Camera != null)
+        {
+            if (IsMultiplayerAuthority())
+            {
+                Camera.Enabled = true;
+                Camera.MakeCurrent();
+
+                GD.Print($"Cámara activada para Player {Name}");
+            }
+            else
+            {
+                Camera.Enabled = false;
+
+                GD.Print($"Cámara desactivada para Player {Name}");
+            }
+        }
     }
 
     // ============================================================
@@ -485,6 +507,16 @@ public partial class Player : CharacterBody2D
     public Panel MsjPanel { get; set; }
 
     private int dialogoId = 0;
+
+    [Rpc(
+    MultiplayerApi.RpcMode.AnyPeer,
+    CallLocal = true,
+    TransferMode = MultiplayerPeer.TransferModeEnum.Reliable
+)]
+    public void RpcMostrarDialogo(string texto, float segundos)
+    {
+        _ = MostrarDialogo(texto, segundos);
+    }
 
     public async Task MostrarDialogo(string texto, float segundos = 3f)
     {
