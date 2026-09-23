@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://c7meu3wfmjxue"]
+
+[node name="Mensaje" type="Control" unique_id=1034978795]
+layout_mode = 3
+anchor_right = 0.21300001
+anchor_bottom = 0.10700001
+offset_right = -0.37602234
+offset_bottom = 3.6639938
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="Panel" parent="." unique_id=1726525872]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="text" type="Label" parent="Panel" unique_id=216488237]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 8
+text = "dasdasdasd"

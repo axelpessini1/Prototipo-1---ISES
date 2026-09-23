@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://b7cjpykahbttr" path="res://Script/Entity/Player.cs" id="1_a7m3c"]
 [ext_resource type="Texture2D" uid="uid://dyfxuli20afmq" path="res://Textures/Entity/Player/character_9-16.png" id="2_gctxn"]
+[ext_resource type="PackedScene" uid="uid://c7meu3wfmjxue" path="res://Scenes/Control/mensaje.tscn" id="3_31713"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_p3wu2"]
 size = Vector2(16, 20)
@@ -167,9 +168,23 @@ _data = {
 &"walk_up": SubResource("Animation_pfi15")
 }
 
-[node name="Player" type="CharacterBody2D" unique_id=113068425 node_paths=PackedStringArray("AnimationPlayer")]
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_gctxn"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath("AnimationPlayer:current_animation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath("PlayerSprite:flip_h")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+
+[node name="Player" type="CharacterBody2D" unique_id=113068425 node_paths=PackedStringArray("AnimationPlayer", "Camera", "DialogoText", "MsjPanel")]
 script = ExtResource("1_a7m3c")
 AnimationPlayer = NodePath("AnimationPlayer")
+Camera = NodePath("Camera2D")
+DialogoText = NodePath("Mensaje/Panel/text")
+MsjPanel = NodePath("Mensaje/Panel")
 
 [node name="PlayerSprite" type="Sprite2D" parent="." unique_id=1001188379]
 texture_filter = 1
@@ -182,3 +197,24 @@ shape = SubResource("RectangleShape2D_p3wu2")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=946288159]
 libraries/ = SubResource("AnimationLibrary_pfi15")
+speed_scale = 3.2
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1313686860]
+replication_config = SubResource("SceneReplicationConfig_gctxn")
+
+[node name="Mensaje" parent="." unique_id=1034978795 instance=ExtResource("3_31713")]
+offset_left = -42.0
+offset_top = -41.0
+offset_right = 47.18801
+offset_bottom = -13.0
+
+[node name="text" parent="Mensaje/Panel" parent_id_path=PackedInt32Array(1034978795, 1726525872) index="0" unique_id=216488237]
+texture_filter = 1
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=872329118]
+zoom = Vector2(2, 2)
+
+[editable path="Mensaje"]

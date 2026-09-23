@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dwlfr3r1m5xbu"
-path="res://.godot/imported/TileMap_Dungeon.png-df3a887371374ccb3f14a1e70ba5f547.ctex"
+uid="uid://cgnky2q6ndwuc"
+path="res://.godot/imported/Fireplace_1.png-9c2b4c221df0d43d2f6b7aa2300845c9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Textures/TileMap_Dungeon.png"
-dest_files=["res://.godot/imported/TileMap_Dungeon.png-df3a887371374ccb3f14a1e70ba5f547.ctex"]
+source_file="res://Textures/Tilemap/The Fan-tasy Tileset (Free)/Art/Props/Fireplace_1.png"
+dest_files=["res://.godot/imported/Fireplace_1.png-9c2b4c221df0d43d2f6b7aa2300845c9.ctex"]
 
 [params]
 

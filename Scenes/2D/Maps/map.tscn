@@ -1,14 +1,20 @@
 [gd_scene format=3 uid="uid://dxxbfq3pd6jtn"]
 
 [ext_resource type="Script" uid="uid://br0t68dy6523v" path="res://Script/2D/Map.cs" id="1_rw382"]
-[ext_resource type="PackedScene" uid="uid://bm8p5kcqgbom7" path="res://Scenes/2D/Entity/player.tscn" id="1_x0vkx"]
-[ext_resource type="PackedScene" uid="uid://c1dinama1n03u" path="res://Scenes/Node/main.tscn" id="3_rw382"]
-[ext_resource type="PackedScene" uid="uid://ct4qiqxpilheg" path="res://Scenes/Control/Code.tscn" id="4_d5x67"]
+[ext_resource type="PackedScene" uid="uid://c5evh38ctrbry" path="res://Scenes/2D/Maps/Tilemap/MapaTile.tscn" id="2_d5x67"]
+[ext_resource type="PackedScene" uid="uid://eh3o7q257too" path="res://Editor/editor.tscn" id="3_rw382"]
+[ext_resource type="PackedScene" uid="uid://c1dinama1n03u" path="res://Scenes/Node/main.tscn" id="5_8yng0"]
 
 [node name="Map" type="Node2D" unique_id=1022805357]
 script = ExtResource("1_rw382")
 
-[node name="Player" parent="." unique_id=113068425 instance=ExtResource("1_x0vkx")]
+[node name="TileMap-Mapa" parent="." unique_id=391536933 instance=ExtResource("2_d5x67")]
 
-[node name="Main" parent="." unique_id=449138742 instance=ExtResource("3_rw382")]
-CodeScene = ExtResource("4_d5x67")
+[node name="Editor" parent="." unique_id=891959059 instance=ExtResource("3_rw382")]
+
+[node name="Main" parent="." unique_id=449138742 instance=ExtResource("5_8yng0")]
+SpawnPoints = Array[Vector2]([Vector2(0, 0), Vector2(0, 0), Vector2(0, 0), Vector2(0, 0)])
+
+[editable path="Editor"]
+[editable path="Editor/Code"]
+[editable path="Main"]

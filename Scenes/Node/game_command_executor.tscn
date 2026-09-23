@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dshaha4hec3xa"]
+
+[ext_resource type="Script" uid="uid://cr2p2u4yptbso" path="res://Script/API [Prox Update - M]/GameCommandExecutor.cs" id="1_6ikod"]
+
+[node name="GameCommandExecutor" type="Node" unique_id=159186501]
+script = ExtResource("1_6ikod")

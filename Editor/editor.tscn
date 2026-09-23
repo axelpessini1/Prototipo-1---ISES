@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://eh3o7q257too"]
+
+[ext_resource type="PackedScene" uid="uid://ct4qiqxpilheg" path="res://Scenes/Control/Code.tscn" id="1_54esn"]
+[ext_resource type="Script" uid="uid://cr8eg3ns803mb" path="res://Editor/Editor.cs" id="1_lxk52"]
+
+[node name="Editor" type="Window" unique_id=891959059]
+oversampling_override = 1.0
+position = Vector2i(30, 36)
+size = Vector2i(300, 300)
+script = ExtResource("1_lxk52")
+
+[node name="Code" parent="." unique_id=394592396 instance=ExtResource("1_54esn")]

@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 public partial class Player : CharacterBody2D
@@ -9,11 +10,17 @@ public partial class Player : CharacterBody2D
     [Export]
     public AnimationPlayer AnimationPlayer { get; set; }
 
-    // Tamaño de cada celda del RPG
+    [Export]
+    public int PlayerIndex { get; set; } = 1;
+
+    [Export]
+    public Camera2D Camera { get; set; }
+
     private const int CELL_SIZE = 16;
 
-    // Velocidad del movimiento por código
-    private const float CODE_MOVE_SPEED = 100.0f;
+    // =========================
+    // ESTADO
+    // =========================
 
     private enum Direction
     {
@@ -26,231 +33,508 @@ public partial class Player : CharacterBody2D
     private Direction lastDirection = Direction.Down;
 
     public bool Moving { get; private set; }
-
-    // Indica si el jugador está siendo controlado por el código
     public bool CodeMoving { get; private set; }
 
-    // =========================================================
-    // MOVIMIENTO NORMAL DEL JUGADOR
-    // =========================================================
+    // Este valor debe ser puesto en true
+    // cuando el usuario está escribiendo código.
+    public bool IsWritingCode { get; set; }
+
+    // =========================
+    // MOVIMIENTO
+    // =========================
+
+    private Vector2 _targetPosition;
+    private bool _isMovingToCell = false;
+
+    // =========================
+    // COLA DE MOVIMIENTO
+    // =========================
+
+    private readonly Queue<Vector2I> _moveQueue = new();
+
+    // =========================
+    // ANIMACIÓN
+    // =========================
+
+    private string _currentAnimation = "";
+
+    public override void _EnterTree()
+    {
+        AddToGroup("player");
+
+        if (int.TryParse(Name, out int peerId))
+        {
+            SetMultiplayerAuthority(peerId);
+
+            GD.Print(
+                $"Player {Name}: autoridad = {peerId}, " +
+                $"soy autoridad? {IsMultiplayerAuthority()}"
+            );
+        }
+        else
+        {
+            GD.PushWarning(
+                $"Player: no se pudo parsear el nombre '{Name}' como peer ID."
+            );
+        }
+    }
+
+    public override void _Ready()
+    {
+        MsjPanel.Visible = false;
+
+        AddToGroup("player");
+
+        Position = SnapToGrid(Position);
+        _targetPosition = Position;
+
+        PlayIdleAnimation();
+
+        // =====================================
+        // CÁMARA
+        // =====================================
+
+        if (Camera != null)
+        {
+            if (IsMultiplayerAuthority())
+            {
+                Camera.Enabled = true;
+                Camera.MakeCurrent();
+
+                GD.Print($"Cámara activada para Player {Name}");
+            }
+            else
+            {
+                Camera.Enabled = false;
+
+                GD.Print($"Cámara desactivada para Player {Name}");
+            }
+        }
+    }
+
+    // ============================================================
+    // INPUT
+    // ============================================================
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (!IsMultiplayerAuthority()) return;
+
+        // NO permitir movimiento mientras se escribe código
+        if (IsWritingCode) return;
+
+        // NO permitir input manual mientras el código mueve al jugador
+        if (CodeMoving) return;
+
+        // NO aceptar otro movimiento mientras termina el actual
+        if (_isMovingToCell) return;
+
+
+        // NO permitir movimiento mientras se escribe código
+        if (IsWritingCode)
+            return;
+
+        // NO permitir input manual mientras el código mueve al jugador
+        if (CodeMoving)
+            return;
+
+        // NO aceptar otro movimiento mientras termina el actual
+        if (_isMovingToCell)
+            return;
+
+        // Solo reaccionamos a teclas presionadas
+        if (@event is not InputEventKey keyEvent)
+            return;
+
+        if (!keyEvent.Pressed || keyEvent.Echo)
+            return;
+
+        Vector2 direction = Vector2.Zero;
+
+        switch (keyEvent.Keycode)
+        {
+            case Key.W:
+            case Key.Up:
+                direction = Vector2.Up;
+                break;
+
+            case Key.S:
+            case Key.Down:
+                direction = Vector2.Down;
+                break;
+
+            case Key.A:
+            case Key.Left:
+                direction = Vector2.Left;
+                break;
+
+            case Key.D:
+            case Key.Right:
+                direction = Vector2.Right;
+                break;
+        }
+
+        if (direction != Vector2.Zero)
+        {
+            TryMoveToCell(direction);
+        }
+    }
+
+    // ============================================================
+    // PHYSICS
+    // ============================================================
 
     public override void _PhysicsProcess(double delta)
     {
-        // Si el código está moviendo al jugador,
-        // no permitir movimiento con teclado.
+        if (!IsMultiplayerAuthority()) return;
+
+        // -----------------------------------------
+        // Movimiento controlado por código
+        // -----------------------------------------
+
         if (CodeMoving)
         {
-            Velocity = Vector2.Zero;
-            Moving = true;
+            // Si no estamos moviéndonos actualmente,
+            // buscamos el siguiente movimiento.
+            if (!_isMovingToCell)
+            {
+                StartNextCodeMovement();
 
-            UpdateAnimation();
+                // Puede que no haya más movimientos
+                if (!CodeMoving)
+                    return;
+            }
+
+            MoveTowardsTarget(delta);
 
             return;
         }
 
-        Vector2 direction = Input.GetVector(
-            "ui_left",
-            "ui_right",
-            "ui_up",
-            "ui_down"
-        );
+        // -----------------------------------------
+        // Movimiento manual
+        // -----------------------------------------
 
-        // No se está presionando ninguna tecla
-        if (direction == Vector2.Zero)
+        if (_isMovingToCell)
         {
-            Velocity = Vector2.Zero;
-            Moving = false;
+            MoveTowardsTarget(delta);
         }
-        else
-        {
-            Velocity = direction * Speed;
-            Moving = true;
-
-            UpdateDirection(direction);
-        }
-
-        MoveAndSlide();
-
-        UpdateAnimation();
     }
 
-    // =========================================================
-    // MOVIMIENTO DESDE EL CÓDIGO
-    // =========================================================
+    // ============================================================
+    // MOVIMIENTO POR CÓDIGO
+    // ============================================================
 
-    public async Task MoverCeldas(
-        Vector2I direccion,
-        int cantidad)
+    private void StartNextCodeMovement()
     {
-        if (CodeMoving)
-            return;
-
-        CodeMoving = true;
-        Moving = true;
-
-        // Dirección de la animación
-        Vector2 direccionVector =
-            new Vector2(
-                direccion.X,
-                direccion.Y
-            );
-
-        UpdateDirection(direccionVector);
-
-        for (int i = 0; i < cantidad; i++)
+        // No quedan movimientos
+        if (_moveQueue.Count == 0)
         {
-            // ==========================================
-            // DISTANCIA DE UNA CELDA
-            // ==========================================
-
-            Vector2 movimiento =
-                new Vector2(
-                    direccion.X * CELL_SIZE,
-                    direccion.Y * CELL_SIZE
-                );
-
-            Vector2 posicionInicial =
-                GlobalPosition;
-
-            Vector2 posicionObjetivo =
-                posicionInicial + movimiento;
-
-            // ==========================================
-            // COMPROBAR COLISIÓN
-            // ==========================================
-
-            KinematicCollision2D collision =
-                MoveAndCollide(
-                    movimiento,
-                    testOnly: true
-                );
-
-            if (collision != null)
-            {
-                GD.Print(
-                    "Movimiento bloqueado por una colisión."
-                );
-
-                break;
-            }
-
-            // ==========================================
-            // ANIMAR LA CELDA
-            // ==========================================
-
-            float distancia =
-                posicionInicial.DistanceTo(
-                    posicionObjetivo
-                );
-
-            float duracion =
-                distancia / CODE_MOVE_SPEED;
-
-            float tiempo = 0.0f;
-
-            while (tiempo < duracion)
-            {
-                tiempo += (float)GetProcessDeltaTime();
-
-                float progreso =
-                    Mathf.Clamp(
-                        tiempo / duracion,
-                        0.0f,
-                        1.0f
-                    );
-
-                GlobalPosition =
-                    posicionInicial.Lerp(
-                        posicionObjetivo,
-                        progreso
-                    );
-
-                await ToSignal(
-                    GetTree(),
-                    SceneTree.SignalName.ProcessFrame
-                );
-            }
-
-            GlobalPosition = posicionObjetivo;
+            FinishCodeMovement();
+            return;
         }
 
-        // ==========================================
-        // TERMINÓ EL MOVIMIENTO
-        // ==========================================
+        Vector2I direction = _moveQueue.Dequeue();
 
-        GlobalPosition =
-            new Vector2(
-                Mathf.Round(GlobalPosition.X / CELL_SIZE) * CELL_SIZE,
-                Mathf.Round(GlobalPosition.Y / CELL_SIZE) * CELL_SIZE
+        Vector2 dir = new Vector2(direction.X, direction.Y);
+
+        // Guardar dirección
+        SetDirection(dir);
+
+        Vector2 movement = dir * CELL_SIZE;
+
+        // -----------------------------------------
+        // Comprobar colisión
+        // -----------------------------------------
+
+        KinematicCollision2D collision =
+            MoveAndCollide(
+                movement,
+                testOnly: true
             );
 
+        if (collision != null)
+        {
+            GD.Print("Movimiento bloqueado por una colisión.");
+
+            _moveQueue.Clear();
+
+            FinishCodeMovement();
+
+            return;
+        }
+
+        // -----------------------------------------
+        // Preparar movimiento
+        // -----------------------------------------
+
+        _targetPosition = Position + movement;
+
+        _isMovingToCell = true;
+        Moving = true;
+
+        PlayWalkAnimation(dir);
+    }
+
+    private void FinishCodeMovement()
+    {
         CodeMoving = false;
         Moving = false;
+        _isMovingToCell = false;
 
         Velocity = Vector2.Zero;
 
-        UpdateAnimation();
+        PlayIdleAnimation();
     }
 
-    // =========================================================
-    // ACTUALIZAR DIRECCIÓN
-    // =========================================================
+    // ============================================================
+    // MOVIMIENTO MANUAL
+    // ============================================================
 
-    private void UpdateDirection(Vector2 direction)
+    private void TryMoveToCell(Vector2 direction)
     {
-        if (Mathf.Abs(direction.X) > Mathf.Abs(direction.Y))
+        if (IsWritingCode)
+            return;
+
+        if (CodeMoving)
+            return;
+
+        if (_isMovingToCell)
+            return;
+
+        // Guardar dirección
+        SetDirection(direction);
+
+        // -----------------------------------------
+        // Comprobar colisión
+        // -----------------------------------------
+
+        Vector2 movement = direction * CELL_SIZE;
+
+        KinematicCollision2D collision =
+            MoveAndCollide(
+                movement,
+                testOnly: true
+            );
+
+        if (collision != null)
         {
-            if (direction.X > 0)
-                lastDirection = Direction.Right;
-            else
-                lastDirection = Direction.Left;
+            // No mover y mantener idle
+            PlayIdleAnimation();
+            return;
         }
-        else
+
+        // -----------------------------------------
+        // Preparar movimiento
+        // -----------------------------------------
+
+        _targetPosition = Position + movement;
+
+        _isMovingToCell = true;
+        Moving = true;
+
+        PlayWalkAnimation(direction);
+    }
+
+    // ============================================================
+    // EJECUTAR MOVIMIENTO
+    // ============================================================
+
+    private void MoveTowardsTarget(double delta)
+    {
+        float movementSpeed = Speed * (float)delta;
+
+        Position = Position.MoveToward(
+            _targetPosition,
+            movementSpeed
+        );
+
+        // Llegamos al destino
+        if (Position.DistanceTo(_targetPosition) <= 0.01f)
         {
-            if (direction.Y > 0)
-                lastDirection = Direction.Down;
-            else
-                lastDirection = Direction.Up;
+            Position = _targetPosition;
+
+            _isMovingToCell = false;
+            Moving = false;
+
+            // -----------------------------------------
+            // Si hay más movimientos de código,
+            // NO cambiar a idle.
+            // -----------------------------------------
+
+            if (CodeMoving && _moveQueue.Count > 0)
+            {
+                return;
+            }
+
+            // Terminó el movimiento
+            PlayIdleAnimation();
         }
     }
 
-    // =========================================================
-    // ANIMACIÓN
-    // =========================================================
+    // ============================================================
+    // DIRECCIÓN
+    // ============================================================
 
-    private void UpdateAnimation()
+    private void SetDirection(Vector2 direction)
+    {
+        if (direction == Vector2.Up)
+            lastDirection = Direction.Up;
+
+        else if (direction == Vector2.Down)
+            lastDirection = Direction.Down;
+
+        else if (direction == Vector2.Left)
+            lastDirection = Direction.Left;
+
+        else if (direction == Vector2.Right)
+            lastDirection = Direction.Right;
+    }
+
+    // ============================================================
+    // ANIMACIONES
+    // ============================================================
+
+    private void PlayWalkAnimation(Vector2 direction)
+    {
+        string animation = direction switch
+        {
+            var d when d == Vector2.Up => "walk_up",
+            var d when d == Vector2.Down => "walk_down",
+            var d when d == Vector2.Left => "walk_left",
+            var d when d == Vector2.Right => "walk_right",
+            _ => "walk_down"
+        };
+
+        PlayAnimation(animation);
+    }
+
+    private void PlayIdleAnimation()
+    {
+        string animation = lastDirection switch
+        {
+            Direction.Up => "idle_up",
+            Direction.Down => "idle_down",
+            Direction.Left => "idle_left",
+            Direction.Right => "idle_right",
+            _ => "idle_down"
+        };
+
+        PlayAnimation(animation);
+    }
+
+    private void PlayAnimation(string animationName)
     {
         if (AnimationPlayer == null)
             return;
 
-        string animationName;
+        if (!AnimationPlayer.HasAnimation(animationName))
+            return;
 
-        if (Moving)
+        // MUY IMPORTANTE:
+        // No reiniciar la animación si ya está reproduciéndose.
+        if (_currentAnimation == animationName &&
+            AnimationPlayer.IsPlaying())
         {
-            animationName = lastDirection switch
-            {
-                Direction.Up => "walk_up",
-                Direction.Down => "walk_down",
-                Direction.Left => "walk_left",
-                Direction.Right => "walk_right",
-                _ => "walk_down"
-            };
-        }
-        else
-        {
-            animationName = lastDirection switch
-            {
-                Direction.Up => "idle_up",
-                Direction.Down => "idle_down",
-                Direction.Left => "idle_left",
-                Direction.Right => "idle_right",
-                _ => "idle_down"
-            };
+            return;
         }
 
-        if (AnimationPlayer.CurrentAnimation != animationName)
+        _currentAnimation = animationName;
+
+        AnimationPlayer.Play(animationName);
+    }
+
+    // ============================================================
+    // GRID
+    // ============================================================
+
+    private Vector2 SnapToGrid(Vector2 position)
+    {
+        return new Vector2(
+            Mathf.Round(position.X / CELL_SIZE) * CELL_SIZE,
+            Mathf.Round(position.Y / CELL_SIZE) * CELL_SIZE
+        );
+    }
+
+    // ============================================================
+    // API PARA EL CÓDIGO
+    // ============================================================
+
+    public async Task MoverCeldas(Vector2I direccion, int cantidad)
+    {
+        if (CodeMoving)
+            return;
+
+        if (cantidad <= 0)
+            return;
+
+        // -----------------------------------------
+        // Agregar movimientos a la cola
+        // -----------------------------------------
+
+        for (int i = 0; i < cantidad; i++)
         {
-            AnimationPlayer.Play(animationName);
+            _moveQueue.Enqueue(direccion);
+        }
+
+        CodeMoving = true;
+
+        // -----------------------------------------
+        // Esperar hasta terminar
+        // -----------------------------------------
+
+        while (CodeMoving)
+        {
+            await ToSignal(
+                GetTree(),
+                SceneTree.SignalName.PhysicsFrame
+            );
+        }
+    }
+
+    // ============================================================
+    // ESTADO
+    // ============================================================
+
+    public bool IsBusy()
+    {
+        return CodeMoving || _isMovingToCell;
+    }
+
+    [Export]
+    public Label DialogoText { get; set; }
+
+    [Export]
+    public Panel MsjPanel { get; set; }
+
+    private int dialogoId = 0;
+
+    [Rpc(
+    MultiplayerApi.RpcMode.AnyPeer,
+    CallLocal = true,
+    TransferMode = MultiplayerPeer.TransferModeEnum.Reliable
+)]
+    public void RpcMostrarDialogo(string texto, float segundos)
+    {
+        _ = MostrarDialogo(texto, segundos);
+    }
+
+    public async Task MostrarDialogo(string texto, float segundos = 3f)
+    {
+        // Evita que un diálogo viejo oculte uno nuevo
+        dialogoId++;
+        int idActual = dialogoId;
+
+        DialogoText.Text = texto;
+        MsjPanel.Visible = true;
+
+        await ToSignal(
+            GetTree().CreateTimer(segundos),
+            SceneTreeTimer.SignalName.Timeout
+        );
+
+        if (idActual == dialogoId)
+        {
+            MsjPanel.Visible = false;
         }
     }
 }

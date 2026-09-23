@@ -1,7 +1,4 @@
 using Godot;
-using System;
-using System.Diagnostics;
-using System.IO;
 using System.Threading.Tasks;
 
 public partial class Code : Control
@@ -12,69 +9,272 @@ public partial class Code : Control
     [Export]
     public RichTextLabel Output { get; set; }
 
-    private string RutaPython;
+    private PythonExecutor pythonExecutor;
+
+    private Player player;
+
+    private void BuscarPlayer()
+    {
+        player = null;
+
+        var jugadores = GetTree().GetNodesInGroup("player");
+
+        GD.Print(
+            $"CODE: Players encontrados: {jugadores.Count}"
+        );
+
+        foreach (Node node in jugadores)
+        {
+            if (node is Player candidato)
+            {
+                GD.Print(
+                    $"CODE: Player {candidato.Name} | " +
+                    $"autoridad = {candidato.IsMultiplayerAuthority()}"
+                );
+
+                if (candidato.IsMultiplayerAuthority())
+                {
+                    player = candidato;
+
+                    GD.Print(
+                        $"CODE: Player asignado: {player.Name}"
+                    );
+
+                    return;
+                }
+            }
+        }
+
+        GD.PrintErr(
+            "CODE: no se encontró un Player con autoridad local."
+        );
+    }
 
     public override void _Ready()
     {
-        // Ruta del archivo Python dentro del proyecto
-        RutaPython = ProjectSettings.GlobalizePath(
-            "res://Python/ejecutar.py"
-        );
+        pythonExecutor = new PythonExecutor();
+
+        CallDeferred(nameof(BuscarPlayer));
+
     }
 
     private async void _on_ejecutar_button_pressed()
     {
-        await EjecutarPython();
-    }
-
-    private async Task EjecutarPython()
-    {
         string codigo = CodeEditor.Text;
 
-        ProcessStartInfo psi = new ProcessStartInfo
+        PythonResult resultado =
+            await pythonExecutor.EjecutarAsync(codigo);
+
+        if (!resultado.Ok)
         {
-            FileName = "python",
-            Arguments = $"\"{RutaPython}\"",
+            Output.Text = resultado.Error;
+            return;
+        }
 
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
+        Output.Text = resultado.Output;
 
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        GD.Print(
+            "Código ejecutado correctamente."
+        );
 
-        try
+        GD.Print(
+            "Cantidad de comandos: "
+            + resultado.Commands.Count
+        );
+
+        foreach (Variant comandoVariant in resultado.Commands)
         {
-            using Process proceso = new Process();
+            GD.Print(
+                "Comando recibido: "
+                + comandoVariant
+            );
+        }
 
-            proceso.StartInfo = psi;
+        await EjecutarComandos(
+            resultado.Commands
+        );
+    }
 
-            proceso.Start();
+    private async Task EjecutarComandos(
+     Godot.Collections.Array comandos
+ )
+    {
+        foreach (Variant comandoVariant in comandos)
+        {
+            Godot.Collections.Dictionary comando =
+                comandoVariant.AsGodotDictionary();
 
-            // Enviar el código escrito por el jugador
-            await proceso.StandardInput.WriteAsync(codigo);
-            proceso.StandardInput.Close();
-
-            // Leer la salida de Python
-            string salida = await proceso.StandardOutput.ReadToEndAsync();
-
-            // Leer errores del proceso
-            string errores = await proceso.StandardError.ReadToEndAsync();
-
-            await proceso.WaitForExitAsync();
-
-            if (!string.IsNullOrEmpty(errores))
+            if (!comando.ContainsKey("action"))
             {
-                Output.Text = errores;
-                return;
+                GD.PrintErr("CODE: comando sin action.");
+                continue;
             }
 
-            Output.Text = salida;
+            string accion =
+                comando["action"].AsString();
+
+            switch (accion)
+            {
+                case "move":
+                    {
+                        string direccion =
+                            comando["direction"].AsString();
+
+                        int cantidad =
+                            comando["amount"].AsInt32();
+
+                        await EjecutarMovimiento(
+                            direccion,
+                            cantidad
+                        );
+
+                        break;
+                    }
+
+                case "say":
+                    {
+                        string texto =
+                            comando["text"].AsString();
+
+                        await EjecutarDialogo(texto);
+
+                        break;
+                    }
+
+                default:
+                    {
+                        GD.PrintErr(
+                            $"CODE: acción desconocida: {accion}"
+                        );
+
+                        break;
+                    }
+            }
         }
-        catch (Exception e)
+    }
+
+    private Player ObtenerPlayer()
+    {
+        if (player != null &&
+            GodotObject.IsInstanceValid(player))
         {
-            Output.Text = "Error al ejecutar Python:\n" + e.Message;
+            return player;
+        }
+
+        var jugadores = GetTree().GetNodesInGroup("player");
+
+        foreach (Node node in jugadores)
+        {
+            if (node is Player candidato &&
+                candidato.IsMultiplayerAuthority())
+            {
+                player = candidato;
+
+                GD.Print(
+                    $"CODE: Player asignado: {player.Name}"
+                );
+
+                return player;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task EjecutarMovimiento(
+        string direccion,
+        int cantidad
+    )
+    {
+        ObtenerPlayer();
+
+        Vector2I direccionVector;
+
+        switch (direccion)
+        {
+            case "right":
+                direccionVector = Vector2I.Right;
+                break;
+
+            case "left":
+                direccionVector = Vector2I.Left;
+                break;
+
+            case "up":
+                direccionVector = Vector2I.Up;
+                break;
+
+            case "down":
+                direccionVector = Vector2I.Down;
+                break;
+
+            default:
+                GD.PrintErr(
+                    $"Dirección desconocida: {direccion}"
+                );
+
+                return;
+        }
+
+        GD.Print(
+            $"CODE: ejecutando {direccion} x{cantidad}"
+        );
+
+        await player.MoverCeldas(
+            direccionVector,
+            cantidad
+        );
+    }
+
+    private async Task EjecutarDialogo(string texto)
+    {
+        Player jugador = ObtenerPlayer();
+
+        if (jugador == null)
+        {
+            GD.PrintErr(
+                "CODE: no se encontró el Player para mostrar el diálogo."
+            );
+
+            return;
+        }
+
+        GD.Print(
+            $"CODE: mostrando diálogo: {texto}"
+        );
+
+        jugador.Rpc(
+            nameof(Player.RpcMostrarDialogo),
+            texto,
+            3f
+        );
+
+        // Esperamos para que los comandos Python
+        // sigan ejecutándose en orden.
+        await ToSignal(
+            GetTree().CreateTimer(3f),
+            SceneTreeTimer.SignalName.Timeout
+        );
+    }
+
+    public void _on_text_editor_text_changed()
+    {
+
+    }
+
+    private void _on_text_editor_focus_entered()
+    {
+        if (player != null)
+        {
+            player.IsWritingCode = true;
+        }
+    }
+
+    private void _on_text_editor_focus_exited()
+    {
+        if (player != null)
+        {
+            player.IsWritingCode = false;
         }
     }
 }
