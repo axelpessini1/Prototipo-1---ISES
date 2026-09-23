@@ -12,4 +12,9 @@ public partial class Menu : Control
 	public override void _Process(double delta)
 	{
 	}
+
+	public void _on_play_pressed()
+	{
+		GetTree().ChangeSceneToFile("Scenes/2D/Maps/map.tscn");
+	}
 }

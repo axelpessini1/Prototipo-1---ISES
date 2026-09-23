@@ -13,6 +13,8 @@ public partial class Player : CharacterBody2D
     [Export]
     public int PlayerIndex { get; set; } = 1;
 
+    
+
     private const int CELL_SIZE = 16;
 
     // =========================
@@ -78,6 +80,8 @@ public partial class Player : CharacterBody2D
 
     public override void _Ready()
     {
+        MsjPanel.Visible = false;
+
         AddToGroup("player");
 
         Position = SnapToGrid(Position);
@@ -472,5 +476,33 @@ public partial class Player : CharacterBody2D
     public bool IsBusy()
     {
         return CodeMoving || _isMovingToCell;
+    }
+
+    [Export]
+    public Label DialogoText { get; set; }
+
+    [Export]
+    public Panel MsjPanel { get; set; }
+
+    private int dialogoId = 0;
+
+    public async Task MostrarDialogo(string texto, float segundos = 3f)
+    {
+        // Evita que un diálogo viejo oculte uno nuevo
+        dialogoId++;
+        int idActual = dialogoId;
+
+        DialogoText.Text = texto;
+        MsjPanel.Visible = true;
+
+        await ToSignal(
+            GetTree().CreateTimer(segundos),
+            SceneTreeTimer.SignalName.Timeout
+        );
+
+        if (idActual == dialogoId)
+        {
+            MsjPanel.Visible = false;
+        }
     }
 }

@@ -96,29 +96,59 @@ public partial class Code : Control
     }
 
     private async Task EjecutarComandos(
-        Godot.Collections.Array comandos
-    )
+     Godot.Collections.Array comandos
+ )
     {
         foreach (Variant comandoVariant in comandos)
         {
             Godot.Collections.Dictionary comando =
                 comandoVariant.AsGodotDictionary();
 
+            if (!comando.ContainsKey("action"))
+            {
+                GD.PrintErr("CODE: comando sin action.");
+                continue;
+            }
+
             string accion =
                 comando["action"].AsString();
 
-            if (accion == "move")
+            switch (accion)
             {
-                string direccion =
-                    comando["direction"].AsString();
+                case "move":
+                    {
+                        string direccion =
+                            comando["direction"].AsString();
 
-                int cantidad =
-                    comando["amount"].AsInt32();
+                        int cantidad =
+                            comando["amount"].AsInt32();
 
-                await EjecutarMovimiento(
-                    direccion,
-                    cantidad
-                );
+                        await EjecutarMovimiento(
+                            direccion,
+                            cantidad
+                        );
+
+                        break;
+                    }
+
+                case "say":
+                    {
+                        string texto =
+                            comando["text"].AsString();
+
+                        await EjecutarDialogo(texto);
+
+                        break;
+                    }
+
+                default:
+                    {
+                        GD.PrintErr(
+                            $"CODE: acción desconocida: {accion}"
+                        );
+
+                        break;
+                    }
             }
         }
     }
@@ -194,6 +224,26 @@ public partial class Code : Control
             direccionVector,
             cantidad
         );
+    }
+
+    private async Task EjecutarDialogo(string texto)
+    {
+        Player jugador = ObtenerPlayer();
+
+        if (jugador == null)
+        {
+            GD.PrintErr(
+                "CODE: no se encontró el Player para mostrar el diálogo."
+            );
+
+            return;
+        }
+
+        GD.Print(
+            $"CODE: mostrando diálogo: {texto}"
+        );
+
+        await jugador.MostrarDialogo(texto);
     }
 
     public void _on_text_editor_text_changed()

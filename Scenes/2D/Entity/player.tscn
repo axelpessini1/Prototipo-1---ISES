@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://b7cjpykahbttr" path="res://Script/Entity/Player.cs" id="1_a7m3c"]
 [ext_resource type="Texture2D" uid="uid://dyfxuli20afmq" path="res://Textures/Entity/Player/character_9-16.png" id="2_gctxn"]
+[ext_resource type="PackedScene" uid="uid://c7meu3wfmjxue" path="res://Scenes/Control/mensaje.tscn" id="3_31713"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_p3wu2"]
 size = Vector2(16, 20)
@@ -178,9 +179,11 @@ properties/2/path = NodePath("PlayerSprite:flip_h")
 properties/2/spawn = true
 properties/2/replication_mode = 1
 
-[node name="Player" type="CharacterBody2D" unique_id=113068425 node_paths=PackedStringArray("AnimationPlayer")]
+[node name="Player" type="CharacterBody2D" unique_id=113068425 node_paths=PackedStringArray("AnimationPlayer", "DialogoText", "MsjPanel")]
 script = ExtResource("1_a7m3c")
 AnimationPlayer = NodePath("AnimationPlayer")
+DialogoText = NodePath("Mensaje/Panel/text")
+MsjPanel = NodePath("Mensaje/Panel")
 
 [node name="PlayerSprite" type="Sprite2D" parent="." unique_id=1001188379]
 texture_filter = 1
@@ -197,3 +200,16 @@ speed_scale = 3.2
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1313686860]
 replication_config = SubResource("SceneReplicationConfig_gctxn")
+
+[node name="Mensaje" parent="." unique_id=1034978795 instance=ExtResource("3_31713")]
+offset_left = -42.0
+offset_top = -41.0
+offset_right = 47.18801
+offset_bottom = -13.0
+
+[node name="text" parent="Mensaje/Panel" parent_id_path=PackedInt32Array(1034978795, 1726525872) index="0" unique_id=216488237]
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[editable path="Mensaje"]

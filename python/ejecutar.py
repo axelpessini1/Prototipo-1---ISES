@@ -17,7 +17,8 @@ def ejecutar_codigo(codigo):
         "moveLeft": api.moveLeft,
         "moveUp": api.moveUp,
         "moveDown": api.moveDown,
-        "collect": api.collect
+        "collect": api.collect,
+        "say": api.say
     }
 
     salida = io.StringIO()

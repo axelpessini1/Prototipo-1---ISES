@@ -37,5 +37,11 @@ class GameAPI:
             "action": "collect"
         })
 
+    def say(self, texto):
+        self.commands.append({
+            "action": "say",
+            "text": texto
+        })
+
     def get_commands(self):
         return self.commands
