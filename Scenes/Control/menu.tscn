@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cxf8jdxe5cppq" path="res://Script/Control/Menu.cs" id="1_fc1kg"]
 
-[node name="Menu" type="Control" unique_id=153401089]
+[node name="Menu" type="Control" unique_id=153401089 node_paths=PackedStringArray("Home", "Join", "TextIP")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -10,6 +10,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_fc1kg")
+Home = NodePath("CenterContainer/Inicio")
+Join = NodePath("CenterContainer/Unirse")
+TextIP = NodePath("CenterContainer/Unirse/IP")
 
 [node name="CenterContainer" type="CenterContainer" parent="." unique_id=1926741454]
 layout_mode = 1
@@ -19,16 +22,40 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer" unique_id=174435065]
+[node name="Inicio" type="VBoxContainer" parent="CenterContainer" unique_id=174435065]
+custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
 
-[node name="Play" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1574720020]
+[node name="Host" type="Button" parent="CenterContainer/Inicio" unique_id=1574720020]
 layout_mode = 2
-text = "Jugar"
+text = "Crear Server"
 
-[node name="Exit" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1126704883]
+[node name="Join" type="Button" parent="CenterContainer/Inicio" unique_id=60840381]
+layout_mode = 2
+text = "Unirse"
+
+[node name="Unirse" type="VBoxContainer" parent="CenterContainer" unique_id=1459725226]
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/Unirse" unique_id=1088775080]
+layout_mode = 2
+text = "Unirse a un Servidor - IP"
+
+[node name="IP" type="TextEdit" parent="CenterContainer/Unirse" unique_id=1945052114]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+
+[node name="Join_Server" type="Button" parent="CenterContainer/Unirse" unique_id=1650535644]
+layout_mode = 2
+text = "Unirse"
+
+[node name="Exit" type="Button" parent="CenterContainer/Unirse" unique_id=1126704883]
 layout_mode = 2
 text = "Exit
 "
 
-[connection signal="pressed" from="CenterContainer/VBoxContainer/Play" to="." method="_on_play_pressed"]
+[connection signal="pressed" from="CenterContainer/Inicio/Host" to="." method="_on_play_pressed"]
+[connection signal="pressed" from="CenterContainer/Inicio/Join" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="CenterContainer/Unirse/Join_Server" to="." method="_on_join_server_pressed"]
+[connection signal="pressed" from="CenterContainer/Unirse/Exit" to="." method="_on_exit_pressed"]

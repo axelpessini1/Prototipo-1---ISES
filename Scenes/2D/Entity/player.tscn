@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://b7cjpykahbttr" path="res://Script/Entity/Player.cs" id="1_a7m3c"]
 [ext_resource type="Texture2D" uid="uid://dyfxuli20afmq" path="res://Textures/Entity/Player/character_9-16.png" id="2_gctxn"]
 [ext_resource type="PackedScene" uid="uid://c7meu3wfmjxue" path="res://Scenes/Control/mensaje.tscn" id="3_31713"]
+[ext_resource type="PackedScene" uid="uid://eh3o7q257too" path="res://Editor/editor.tscn" id="4_pfi15"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_p3wu2"]
 size = Vector2(16, 20)
@@ -216,5 +217,7 @@ vertical_alignment = 1
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=872329118]
 zoom = Vector2(2, 2)
+
+[node name="Editor" parent="." unique_id=891959059 instance=ExtResource("4_pfi15")]
 
 [editable path="Mensaje"]

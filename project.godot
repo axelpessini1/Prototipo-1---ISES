@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="IsesPrototipo"
-run/main_scene="uid://dxxbfq3pd6jtn"
+run/main_scene="uid://cfk3t522v52wv"
 config/features=PackedStringArray("4.7", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
 

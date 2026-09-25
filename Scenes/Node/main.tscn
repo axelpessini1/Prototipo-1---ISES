@@ -3,49 +3,13 @@
 [ext_resource type="Script" uid="uid://bxgp1lbb32y6w" path="res://Script/Node/Main.cs" id="1_m325n"]
 [ext_resource type="PackedScene" uid="uid://bm8p5kcqgbom7" path="res://Scenes/2D/Entity/player.tscn" id="2_j4h5q"]
 
-[node name="Main" type="Node" unique_id=449138742 node_paths=PackedStringArray("UI", "PlayersContainer", "PlayerSpawner")]
+[node name="Main" type="Node" unique_id=449138742 node_paths=PackedStringArray("PlayersContainer")]
 script = ExtResource("1_m325n")
-UI = NodePath("UI")
 PlayerScene = ExtResource("2_j4h5q")
 PlayersContainer = NodePath("Players")
-PlayerSpawner = NodePath("MultiplayerSpawner")
-
-[node name="UI" type="Control" parent="." unique_id=725849058]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="CenterContainer" type="CenterContainer" parent="UI" unique_id=587787571]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/CenterContainer" unique_id=719344513]
-layout_mode = 2
-
-[node name="Host" type="Button" parent="UI/CenterContainer/VBoxContainer" unique_id=1374769909]
-layout_mode = 2
-text = "Crear Partida"
-
-[node name="Join" type="Button" parent="UI/CenterContainer/VBoxContainer" unique_id=1899105622]
-layout_mode = 2
-text = "Unirse a Partida"
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=565344330]
 spawn_path = NodePath("../Players")
 spawn_limit = 4
 
 [node name="Players" type="Node2D" parent="." unique_id=1968185871]
-
-[connection signal="pressed" from="UI/CenterContainer/VBoxContainer/Host" to="." method="_on_host_pressed"]
-[connection signal="pressed" from="UI/CenterContainer/VBoxContainer/Join" to="." method="_on_join_pressed"]

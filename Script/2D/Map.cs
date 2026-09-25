@@ -3,8 +3,7 @@ using System;
 
 public partial class Map : Node2D
 {
-	[Export]
-	public Window editor;
+
     public override void _Ready()
     {
 		//editor.Visible = false;
