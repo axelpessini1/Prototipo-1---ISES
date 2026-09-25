@@ -16,11 +16,21 @@ public partial class Player : CharacterBody2D
     [Export]
     public Camera2D Camera { get; set; }
 
+    // ============================================================
+    // AUTORIDAD
+    // ============================================================
+
+    private bool _isLocalPlayer;
+
+    // ============================================================
+    // CONSTANTES
+    // ============================================================
+
     private const int CELL_SIZE = 16;
 
-    // =========================
+    // ============================================================
     // ESTADO
-    // =========================
+    // ============================================================
 
     private enum Direction
     {
@@ -35,28 +45,31 @@ public partial class Player : CharacterBody2D
     public bool Moving { get; private set; }
     public bool CodeMoving { get; private set; }
 
-    // Este valor debe ser puesto en true
-    // cuando el usuario está escribiendo código.
+    // True mientras el jugador está escribiendo código
     public bool IsWritingCode { get; set; }
 
-    // =========================
+    // ============================================================
     // MOVIMIENTO
-    // =========================
+    // ============================================================
 
     private Vector2 _targetPosition;
     private bool _isMovingToCell = false;
 
-    // =========================
+    // ============================================================
     // COLA DE MOVIMIENTO
-    // =========================
+    // ============================================================
 
     private readonly Queue<Vector2I> _moveQueue = new();
 
-    // =========================
+    // ============================================================
     // ANIMACIÓN
-    // =========================
+    // ============================================================
 
     private string _currentAnimation = "";
+
+    // ============================================================
+    // ENTER TREE
+    // ============================================================
 
     public override void _EnterTree()
     {
@@ -66,9 +79,14 @@ public partial class Player : CharacterBody2D
         {
             SetMultiplayerAuthority(peerId);
 
+            // IMPORTANTE:
+            // Solo consultamos IsMultiplayerAuthority()
+            // al establecer inicialmente la autoridad.
+            _isLocalPlayer = IsMultiplayerAuthority();
+
             GD.Print(
                 $"Player {Name}: autoridad = {peerId}, " +
-                $"soy autoridad? {IsMultiplayerAuthority()}"
+                $"soy autoridad? {_isLocalPlayer}"
             );
         }
         else
@@ -79,35 +97,42 @@ public partial class Player : CharacterBody2D
         }
     }
 
+    // ============================================================
+    // READY
+    // ============================================================
+
     public override void _Ready()
     {
-        MsjPanel.Visible = false;
-
-        AddToGroup("player");
+        if (MsjPanel != null)
+            MsjPanel.Visible = false;
 
         Position = SnapToGrid(Position);
         _targetPosition = Position;
 
         PlayIdleAnimation();
 
-        // =====================================
+        // ========================================================
         // CÁMARA
-        // =====================================
+        // ========================================================
 
         if (Camera != null)
         {
-            if (IsMultiplayerAuthority())
+            if (_isLocalPlayer)
             {
                 Camera.Enabled = true;
                 Camera.MakeCurrent();
 
-                GD.Print($"Cámara activada para Player {Name}");
+                GD.Print(
+                    $"Cámara activada para Player {Name}"
+                );
             }
             else
             {
                 Camera.Enabled = false;
 
-                GD.Print($"Cámara desactivada para Player {Name}");
+                GD.Print(
+                    $"Cámara desactivada para Player {Name}"
+                );
             }
         }
     }
@@ -118,31 +143,26 @@ public partial class Player : CharacterBody2D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!IsMultiplayerAuthority()) return;
+        // NO usar IsMultiplayerAuthority() aquí.
+        // La autoridad ya fue determinada en _EnterTree().
+        if (!_isLocalPlayer)
+            return;
 
-        // NO permitir movimiento mientras se escribe código
-        if (IsWritingCode) return;
-
-        // NO permitir input manual mientras el código mueve al jugador
-        if (CodeMoving) return;
-
-        // NO aceptar otro movimiento mientras termina el actual
-        if (_isMovingToCell) return;
-
-
-        // NO permitir movimiento mientras se escribe código
+        // No permitir movimiento mientras se escribe código
         if (IsWritingCode)
             return;
 
-        // NO permitir input manual mientras el código mueve al jugador
+        // No permitir input manual mientras el código mueve
+        // al jugador
         if (CodeMoving)
             return;
 
-        // NO aceptar otro movimiento mientras termina el actual
+        // No aceptar otro movimiento mientras termina
+        // el movimiento actual
         if (_isMovingToCell)
             return;
 
-        // Solo reaccionamos a teclas presionadas
+        // Solo reaccionamos a teclas
         if (@event is not InputEventKey keyEvent)
             return;
 
@@ -186,16 +206,17 @@ public partial class Player : CharacterBody2D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (!IsMultiplayerAuthority()) return;
+        // No consultar Multiplayer aquí.
+        // _isLocalPlayer ya contiene nuestra autoridad.
+        if (!_isLocalPlayer)
+            return;
 
-        // -----------------------------------------
-        // Movimiento controlado por código
-        // -----------------------------------------
+        // ========================================================
+        // MOVIMIENTO CONTROLADO POR CÓDIGO
+        // ========================================================
 
         if (CodeMoving)
         {
-            // Si no estamos moviéndonos actualmente,
-            // buscamos el siguiente movimiento.
             if (!_isMovingToCell)
             {
                 StartNextCodeMovement();
@@ -210,9 +231,9 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        // -----------------------------------------
-        // Movimiento manual
-        // -----------------------------------------
+        // ========================================================
+        // MOVIMIENTO MANUAL
+        // ========================================================
 
         if (_isMovingToCell)
         {
@@ -235,16 +256,19 @@ public partial class Player : CharacterBody2D
 
         Vector2I direction = _moveQueue.Dequeue();
 
-        Vector2 dir = new Vector2(direction.X, direction.Y);
+        Vector2 dir = new Vector2(
+            direction.X,
+            direction.Y
+        );
 
         // Guardar dirección
         SetDirection(dir);
 
         Vector2 movement = dir * CELL_SIZE;
 
-        // -----------------------------------------
-        // Comprobar colisión
-        // -----------------------------------------
+        // ========================================================
+        // COMPROBAR COLISIÓN
+        // ========================================================
 
         KinematicCollision2D collision =
             MoveAndCollide(
@@ -254,7 +278,9 @@ public partial class Player : CharacterBody2D
 
         if (collision != null)
         {
-            GD.Print("Movimiento bloqueado por una colisión.");
+            GD.Print(
+                "Movimiento bloqueado por una colisión."
+            );
 
             _moveQueue.Clear();
 
@@ -263,9 +289,9 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        // -----------------------------------------
-        // Preparar movimiento
-        // -----------------------------------------
+        // ========================================================
+        // PREPARAR MOVIMIENTO
+        // ========================================================
 
         _targetPosition = Position + movement;
 
@@ -274,6 +300,10 @@ public partial class Player : CharacterBody2D
 
         PlayWalkAnimation(dir);
     }
+
+    // ============================================================
+    // FINALIZAR MOVIMIENTO POR CÓDIGO
+    // ============================================================
 
     private void FinishCodeMovement()
     {
@@ -304,11 +334,11 @@ public partial class Player : CharacterBody2D
         // Guardar dirección
         SetDirection(direction);
 
-        // -----------------------------------------
-        // Comprobar colisión
-        // -----------------------------------------
-
         Vector2 movement = direction * CELL_SIZE;
+
+        // ========================================================
+        // COMPROBAR COLISIÓN
+        // ========================================================
 
         KinematicCollision2D collision =
             MoveAndCollide(
@@ -318,14 +348,13 @@ public partial class Player : CharacterBody2D
 
         if (collision != null)
         {
-            // No mover y mantener idle
             PlayIdleAnimation();
             return;
         }
 
-        // -----------------------------------------
-        // Preparar movimiento
-        // -----------------------------------------
+        // ========================================================
+        // PREPARAR MOVIMIENTO
+        // ========================================================
 
         _targetPosition = Position + movement;
 
@@ -341,7 +370,8 @@ public partial class Player : CharacterBody2D
 
     private void MoveTowardsTarget(double delta)
     {
-        float movementSpeed = Speed * (float)delta;
+        float movementSpeed =
+            Speed * (float)delta;
 
         Position = Position.MoveToward(
             _targetPosition,
@@ -356,10 +386,9 @@ public partial class Player : CharacterBody2D
             _isMovingToCell = false;
             Moving = false;
 
-            // -----------------------------------------
-            // Si hay más movimientos de código,
-            // NO cambiar a idle.
-            // -----------------------------------------
+            // ====================================================
+            // SI HAY MÁS MOVIMIENTOS DE CÓDIGO
+            // ====================================================
 
             if (CodeMoving && _moveQueue.Count > 0)
             {
@@ -378,16 +407,21 @@ public partial class Player : CharacterBody2D
     private void SetDirection(Vector2 direction)
     {
         if (direction == Vector2.Up)
+        {
             lastDirection = Direction.Up;
-
+        }
         else if (direction == Vector2.Down)
+        {
             lastDirection = Direction.Down;
-
+        }
         else if (direction == Vector2.Left)
+        {
             lastDirection = Direction.Left;
-
+        }
         else if (direction == Vector2.Right)
+        {
             lastDirection = Direction.Right;
+        }
     }
 
     // ============================================================
@@ -398,10 +432,18 @@ public partial class Player : CharacterBody2D
     {
         string animation = direction switch
         {
-            var d when d == Vector2.Up => "walk_up",
-            var d when d == Vector2.Down => "walk_down",
-            var d when d == Vector2.Left => "walk_left",
-            var d when d == Vector2.Right => "walk_right",
+            var d when d == Vector2.Up =>
+                "walk_up",
+
+            var d when d == Vector2.Down =>
+                "walk_down",
+
+            var d when d == Vector2.Left =>
+                "walk_left",
+
+            var d when d == Vector2.Right =>
+                "walk_right",
+
             _ => "walk_down"
         };
 
@@ -412,10 +454,18 @@ public partial class Player : CharacterBody2D
     {
         string animation = lastDirection switch
         {
-            Direction.Up => "idle_up",
-            Direction.Down => "idle_down",
-            Direction.Left => "idle_left",
-            Direction.Right => "idle_right",
+            Direction.Up =>
+                "idle_up",
+
+            Direction.Down =>
+                "idle_down",
+
+            Direction.Left =>
+                "idle_left",
+
+            Direction.Right =>
+                "idle_right",
+
             _ => "idle_down"
         };
 
@@ -430,8 +480,7 @@ public partial class Player : CharacterBody2D
         if (!AnimationPlayer.HasAnimation(animationName))
             return;
 
-        // MUY IMPORTANTE:
-        // No reiniciar la animación si ya está reproduciéndose.
+        // No reiniciar la animación si ya está reproduciéndose
         if (_currentAnimation == animationName &&
             AnimationPlayer.IsPlaying())
         {
@@ -459,17 +508,23 @@ public partial class Player : CharacterBody2D
     // API PARA EL CÓDIGO
     // ============================================================
 
-    public async Task MoverCeldas(Vector2I direccion, int cantidad)
+    public async Task MoverCeldas(
+        Vector2I direccion,
+        int cantidad
+    )
     {
+        if (!_isLocalPlayer)
+            return;
+
         if (CodeMoving)
             return;
 
         if (cantidad <= 0)
             return;
 
-        // -----------------------------------------
-        // Agregar movimientos a la cola
-        // -----------------------------------------
+        // ========================================================
+        // AGREGAR MOVIMIENTOS A LA COLA
+        // ========================================================
 
         for (int i = 0; i < cantidad; i++)
         {
@@ -478,9 +533,9 @@ public partial class Player : CharacterBody2D
 
         CodeMoving = true;
 
-        // -----------------------------------------
-        // Esperar hasta terminar
-        // -----------------------------------------
+        // ========================================================
+        // ESPERAR HASTA TERMINAR
+        // ========================================================
 
         while (CodeMoving)
         {
@@ -500,6 +555,10 @@ public partial class Player : CharacterBody2D
         return CodeMoving || _isMovingToCell;
     }
 
+    // ============================================================
+    // DIÁLOGO
+    // ============================================================
+
     [Export]
     public Label DialogoText { get; set; }
 
@@ -508,33 +567,53 @@ public partial class Player : CharacterBody2D
 
     private int dialogoId = 0;
 
+    // ============================================================
+    // RPC DIÁLOGO
+    // ============================================================
+
     [Rpc(
-    MultiplayerApi.RpcMode.AnyPeer,
-    CallLocal = true,
-    TransferMode = MultiplayerPeer.TransferModeEnum.Reliable
-)]
-    public void RpcMostrarDialogo(string texto, float segundos)
+        MultiplayerApi.RpcMode.AnyPeer,
+        CallLocal = true,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable
+    )]
+    public void RpcMostrarDialogo(
+        string texto,
+        float segundos
+    )
     {
-        _ = MostrarDialogo(texto, segundos);
+        _ = MostrarDialogo(
+            texto,
+            segundos
+        );
     }
 
-    public async Task MostrarDialogo(string texto, float segundos = 3f)
+    public async Task MostrarDialogo(
+        string texto,
+        float segundos = 3f
+    )
     {
-        // Evita que un diálogo viejo oculte uno nuevo
+        // Evita que un diálogo viejo
+        // oculte uno nuevo
         dialogoId++;
+
         int idActual = dialogoId;
 
-        DialogoText.Text = texto;
-        MsjPanel.Visible = true;
+        if (DialogoText != null)
+            DialogoText.Text = texto;
+
+        if (MsjPanel != null)
+            MsjPanel.Visible = true;
 
         await ToSignal(
             GetTree().CreateTimer(segundos),
             SceneTreeTimer.SignalName.Timeout
         );
 
-        if (idActual == dialogoId)
+        if (idActual == dialogoId &&
+            GodotObject.IsInstanceValid(this))
         {
-            MsjPanel.Visible = false;
+            if (MsjPanel != null)
+                MsjPanel.Visible = false;
         }
     }
 }

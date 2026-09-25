@@ -2,601 +2,388 @@ using Godot;
 
 public partial class Main : Node
 {
-	private const int Port = 7777;
-	private const int MaxClients = 4;
-
-	[Export]
-	public Control UI { get; set; }
-
-	[Export]
-	public PackedScene PlayerScene { get; set; }
-
-	[Export]
-	public Node2D PlayersContainer { get; set; }
-
-	[Export]
-	public Godot.Collections.Array<Vector2> SpawnPoints { get; set; } = new()
-	{
-		new Vector2(160, 160),
-		new Vector2(320, 160),
-		new Vector2(160, 320),
-		new Vector2(320, 320)
-	};
-
-	private ENetMultiplayerPeer _peer;
-
-
-	// ============================================================
-	// READY
-	// ============================================================
-	public override void _Ready()
-	{
-		GD.Print("================================");
-		GD.Print("MAIN READY");
-		GD.Print($"Main Path: {GetPath()}");
-		GD.Print("================================");
-
-		if (PlayersContainer == null)
-		{
-			PlayersContainer = new Node2D
-			{
-				Name = "Players"
-			};
-
-			AddChild(PlayersContainer);
-		}
-
-		// Si ya existe un MultiplayerPeer,
-		// significa que el servidor fue creado
-		// desde el menú.
-		if (Multiplayer.MultiplayerPeer != null)
-		{
-			GD.Print(
-				"Ya existe una conexión Multiplayer."
-			);
-
-			GD.Print(
-				$"¿Soy servidor?: " +
-				$"{Multiplayer.IsServer()}"
-			);
-
-			GD.Print(
-				$"Mi ID: " +
-				$"{Multiplayer.GetUniqueId()}"
-			);
-
-			if (Multiplayer.IsServer())
-			{
-				Multiplayer.PeerConnected +=
-					OnPeerConnected;
-
-				Multiplayer.PeerDisconnected +=
-					OnPeerDisconnected;
-
-				// Crear al jugador HOST.
-				SpawnPlayer(
-					Multiplayer.GetUniqueId()
-				);
-			}
-		}
-
-		// Resto de tu código...
-	}
-
-	// ============================================================
-	// HOST
-	// ============================================================
-
-	public void HostGame()
-	{
-		if (_peer != null)
-		{
-			GD.Print(
-				"Ya existe una conexión."
-			);
-
-			return;
-		}
-
-		_peer = new ENetMultiplayerPeer();
-
-		Error error = _peer.CreateServer(
-			Port,
-			MaxClients
-		);
-
-		if (error != Error.Ok)
-		{
-			GD.PushError(
-				$"CreateServer falló: {error}"
-			);
-
-			_peer = null;
-
-			return;
-		}
-
-		Multiplayer.MultiplayerPeer = _peer;
-
-		// Eventos del servidor.
-		Multiplayer.PeerConnected += OnPeerConnected;
-		Multiplayer.PeerDisconnected += OnPeerDisconnected;
-
-		GD.Print("================================");
-		GD.Print("HOST INICIADO");
-		GD.Print($"ID: {Multiplayer.GetUniqueId()}");
-		GD.Print($"Puerto: {Port}");
-		GD.Print("================================");
-
-		// El servidor también es un jugador.
-		SpawnPlayer(1);
-	}
-
-
-	// ============================================================
-	// JOIN
-	// ============================================================
-
-	public void JoinGame(
-		string address = "192.168.88.29"
-	)
-	{
-		if (_peer != null)
-		{
-			GD.Print(
-				"Ya existe una conexión."
-			);
-
-			return;
-		}
-
-		_peer = new ENetMultiplayerPeer();
-
-		Error error = _peer.CreateClient(
-			address,
-			Port
-		);
-
-		if (error != Error.Ok)
-		{
-			GD.PushError(
-				$"CreateClient falló: {error}"
-			);
-
-			_peer = null;
-
-			return;
-		}
-
-		Multiplayer.MultiplayerPeer = _peer;
-
-		// Eventos del cliente.
-		Multiplayer.ConnectedToServer +=
-			OnConnectedToServer;
-
-		Multiplayer.ConnectionFailed +=
-			OnConnectionFailed;
-
-		Multiplayer.ServerDisconnected +=
-			OnServerDisconnected;
-
-		GD.Print("================================");
-		GD.Print("JOIN");
-		GD.Print($"Servidor: {address}:{Port}");
-		GD.Print("================================");
-	}
-
-
-	// ============================================================
-	// PEER CONNECTED
-	// ============================================================
-
-	private void OnPeerConnected(long id)
-	{
-		GD.Print("================================");
-		GD.Print($"PEER CONECTADO: {id}");
-		GD.Print(
-			$"¿Soy servidor?: {Multiplayer.IsServer()}"
-		);
-		GD.Print("================================");
-
-		// Solamente el servidor administra los jugadores.
-		if (!Multiplayer.IsServer())
-			return;
-
-
-		// --------------------------------------------------------
-		// 1. Crear el jugador nuevo
-		// --------------------------------------------------------
-
-		SpawnPlayer(id);
-
-
-		// --------------------------------------------------------
-		// 2. Enviar los jugadores existentes
-		//    a todos los clientes.
-		// --------------------------------------------------------
-
-		foreach (Node child in PlayersContainer.GetChildren())
-		{
-			if (!long.TryParse(
-				child.Name,
-				out long existingPeerId))
-			{
-				continue;
-			}
-
-			Player existingPlayer =
-				child as Player;
-
-			if (existingPlayer == null)
-				continue;
-
-			// El jugador nuevo ya fue enviado arriba.
-			if (existingPeerId == id)
-				continue;
-
-			GD.Print(
-				$"Enviando Player existente " +
-				$"{existingPeerId} " +
-				$"a los clientes."
-			);
-
-			Rpc(
-				nameof(SpawnPlayerRpc),
-				existingPeerId,
-				existingPlayer.Position
-			);
-		}
-	}
-
-
-	// ============================================================
-	// PEER DISCONNECTED
-	// ============================================================
-
-	private void OnPeerDisconnected(long id)
-	{
-		GD.Print(
-			$"PEER DESCONECTADO: {id}"
-		);
-
-		if (!Multiplayer.IsServer())
-			return;
-
-		// IMPORTANTE:
-		// Esto sí es un RPC.
-		Rpc(
-			nameof(RemovePlayerRpc),
-			id
-		);
-	}
-
-
-	// ============================================================
-	// CONNECTED TO SERVER
-	// ============================================================
-
-	private void OnConnectedToServer()
-	{
-		GD.Print("================================");
-		GD.Print("CONECTADO AL SERVIDOR");
-		GD.Print(
-			$"Mi ID: {Multiplayer.GetUniqueId()}"
-		);
-		GD.Print(
-			$"Main Path: {GetPath()}"
-		);
-		GD.Print("================================");
-	}
-
-
-	// ============================================================
-	// CONNECTION FAILED
-	// ============================================================
-
-	private void OnConnectionFailed()
-	{
-		GD.PushError(
-			"No se pudo conectar al servidor."
-		);
-
-		_peer = null;
-	}
-
-
-	// ============================================================
-	// SERVER DISCONNECTED
-	// ============================================================
-
-	private void OnServerDisconnected()
-	{
-		GD.Print(
-			"Servidor desconectado."
-		);
-
-		_peer = null;
-	}
-
-
-	// ============================================================
-	// SPAWN PLAYER
-	// ============================================================
-
-	private void SpawnPlayer(long peerId)
-	{
-		Vector2 position =
-			GetSpawnPoint(peerId);
-
-		GD.Print("================================");
-		GD.Print(
-			$"Servidor: enviando RPC de spawn"
-		);
-		GD.Print(
-			$"Peer: {peerId}"
-		);
-		GD.Print(
-			$"Posición: {position}"
-		);
-		GD.Print("================================");
-
-		// IMPORTANTE:
-		//
-		// NO hacemos:
-		//
-		// SpawnPlayerRpc(peerId, position);
-		//
-		// porque eso sería una llamada local.
-		//
-		// Rpc() envía la llamada a los demás peers
-		// y como CallLocal = true también la ejecuta
-		// en el servidor.
-
-		Rpc(
-			nameof(SpawnPlayerRpc),
-			peerId,
-			position
-		);
-	}
-
-
-	// ============================================================
-	// SPAWN RPC
-	// ============================================================
-
-	[Rpc(
-		MultiplayerApi.RpcMode.Authority,
-		CallLocal = true
-	)]
-	private void SpawnPlayerRpc(
-		long peerId,
-		Vector2 position)
-	{
-		GD.Print("================================");
-		GD.Print("SpawnPlayerRpc RECIBIDO");
-		GD.Print(
-			$"Peer: {peerId}"
-		);
-		GD.Print(
-			$"Posición: {position}"
-		);
-		GD.Print(
-			$"Mi ID: {Multiplayer.GetUniqueId()}"
-		);
-		GD.Print(
-			$"Main Path: {GetPath()}"
-		);
-		GD.Print("================================");
-
-
-		// --------------------------------------------------------
-		// Evitar duplicados
-		// --------------------------------------------------------
-
-		if (PlayersContainer.HasNode(
-			peerId.ToString()))
-		{
-			GD.Print(
-				$"Player {peerId} ya existe."
-			);
-
-			return;
-		}
-
-
-		// --------------------------------------------------------
-		// Verificar PlayerScene
-		// --------------------------------------------------------
-
-		if (PlayerScene == null)
-		{
-			GD.PushError(
-				"PlayerScene NO está asignado."
-			);
-
-			return;
-		}
-
-
-		// --------------------------------------------------------
-		// Crear Player
-		// --------------------------------------------------------
-
-		Player player =
-			PlayerScene.Instantiate<Player>();
-
-
-		// --------------------------------------------------------
-		// Nombre
-		// --------------------------------------------------------
-
-		player.Name =
-			peerId.ToString();
-
-
-		// --------------------------------------------------------
-		// Posición
-		// --------------------------------------------------------
-
-		player.Position =
-			position;
-
-
-		// --------------------------------------------------------
-		// Authority
-		//
-		// IMPORTANTE:
-		// Se establece ANTES de AddChild().
-		// --------------------------------------------------------
-
-		player.SetMultiplayerAuthority(
-			(int)peerId
-		);
-
-
-		// --------------------------------------------------------
-		// Grupo
-		// --------------------------------------------------------
-
-		player.AddToGroup(
-			"player"
-		);
-
-
-		// --------------------------------------------------------
-		// Agregar al árbol
-		// --------------------------------------------------------
-
-		PlayersContainer.AddChild(
-			player
-		);
-
-
-		// --------------------------------------------------------
-		// Debug
-		// --------------------------------------------------------
-
-		GD.Print(
-			$"Player creado: {peerId}"
-		);
-
-		GD.Print(
-			$"Authority: {peerId}"
-		);
-
-		GD.Print(
-			$"Mi ID: {Multiplayer.GetUniqueId()}"
-		);
-
-		GD.Print(
-			$"¿Soy autoridad?: " +
-			$"{player.IsMultiplayerAuthority()}"
-		);
-	}
-
-
-	// ============================================================
-	// REMOVE PLAYER RPC
-	// ============================================================
-
-	[Rpc(
-		MultiplayerApi.RpcMode.Authority,
-		CallLocal = true
-	)]
-	private void RemovePlayerRpc(
-		long peerId)
-	{
-		GD.Print(
-			$"RemovePlayerRpc → {peerId}"
-		);
-
-		Node player =
-			PlayersContainer.GetNodeOrNull(
-				peerId.ToString()
-			);
-
-		if (player == null)
-		{
-			GD.Print(
-				$"Player {peerId} no existe."
-			);
-
-			return;
-		}
-
-		player.QueueFree();
-
-		GD.Print(
-			$"Player {peerId} eliminado."
-		);
-	}
-
-
-	// ============================================================
-	// SPAWN POINT
-	// ============================================================
-
-	private Vector2 GetSpawnPoint(
-		long peerId)
-	{
-		if (SpawnPoints == null ||
-			SpawnPoints.Count == 0)
-		{
-			GD.PushWarning(
-				"No hay SpawnPoints. " +
-				"Usando Vector2.Zero."
-			);
-
-			return Vector2.Zero;
-		}
-
-		int index =
-			(int)((peerId - 1) %
-			SpawnPoints.Count);
-
-		Vector2 position =
-			SpawnPoints[index];
-
-		GD.Print(
-			$"SpawnPoint para peer {peerId}: " +
-			$"{position}"
-		);
-
-		return position;
-	}
-
-
-	// ============================================================
-	// HOST BUTTON
-	// ============================================================
-
-	public void _on_host_pressed()
-	{
-		GD.Print(
-			"HOST presionado."
-		);
-
-		HostGame();
-
-		if (UI != null)
-			UI.Visible = false;
-	}
-
-
-	// ============================================================
-	// JOIN BUTTON
-	// ============================================================
-
-	public void _on_join_pressed()
-	{
-		GD.Print(
-			"JOIN presionado."
-		);
-
-		JoinGame();
-
-		if (UI != null)
-			UI.Visible = false;
-	}
-
+    // ============================================================
+    // CONFIGURACIÓN
+    // ============================================================
+
+    [Export]
+    public PackedScene PlayerScene { get; set; }
+
+    [Export]
+    public Node2D PlayersContainer { get; set; }
+
+    [Export]
+    public MultiplayerSpawner PlayerSpawner { get; set; }
+
+    [Export]
+    public Godot.Collections.Array<Vector2> SpawnPoints { get; set; }
+
+    // ============================================================
+    // ESTADO
+    // ============================================================
+
+    // Evita ejecutar dos veces la lógica de volver al menú.
+    private bool _returningToMenu = false;
+
+    // Indica si conectamos las señales correctamente.
+    private bool _signalsConnected = false;
+
+    // ============================================================
+    // READY
+    // ============================================================
+
+    public override void _Ready()
+    {
+        GD.Print("================================");
+        GD.Print("MAIN INICIADO");
+        GD.Print($"Mi Peer ID: {Multiplayer.GetUniqueId()}");
+        GD.Print($"¿Soy servidor?: {Multiplayer.IsServer()}");
+        GD.Print("================================");
+
+        // ========================================================
+        // CONECTAR SEÑALES
+        // ========================================================
+
+        Multiplayer.PeerConnected += OnPeerConnected;
+        Multiplayer.PeerDisconnected += OnPeerDisconnected;
+        Multiplayer.ServerDisconnected += OnServerDisconnected;
+
+        _signalsConnected = true;
+
+        // ========================================================
+        // CREAR AL HOST
+        // ========================================================
+
+        if (Multiplayer.IsServer())
+        {
+            GD.Print("MAIN: soy el servidor.");
+
+            SpawnPlayer(
+                Multiplayer.GetUniqueId()
+            );
+        }
+        else
+        {
+            GD.Print("MAIN: soy un cliente.");
+        }
+    }
+
+    // ============================================================
+    // PEER CONECTADO
+    // ============================================================
+
+    private void OnPeerConnected(long peerId)
+    {
+        GD.Print(
+            $"MAIN: se conectó el Peer {peerId}"
+        );
+
+        // Solo el servidor administra los jugadores.
+        if (!Multiplayer.IsServer())
+            return;
+
+        // Crear al jugador nuevo.
+        SpawnPlayer(peerId);
+
+        // ========================================================
+        // ENVIAR LOS JUGADORES EXISTENTES AL NUEVO CLIENTE
+        // ========================================================
+
+        if (PlayersContainer == null)
+        {
+            GD.PushError(
+                "MAIN: PlayersContainer no está asignado."
+            );
+
+            return;
+        }
+
+        foreach (Node child in PlayersContainer.GetChildren())
+        {
+            if (!long.TryParse(
+                    child.Name,
+                    out long existingPeerId))
+            {
+                continue;
+            }
+
+            // No mandarnos a nosotros mismos.
+            if (existingPeerId == peerId)
+                continue;
+
+            if (child is not Node2D playerNode)
+                continue;
+
+            RpcId(
+                peerId,
+                nameof(SpawnPlayerRpc),
+                existingPeerId,
+                playerNode.Position
+            );
+        }
+    }
+
+    // ============================================================
+    // PEER DESCONECTADO
+    // ============================================================
+
+    private void OnPeerDisconnected(long peerId)
+    {
+        GD.Print(
+            $"MAIN: se desconectó el Peer {peerId}"
+        );
+
+        // Si este Main está cerrándose, no hacer nada.
+        if (_returningToMenu)
+            return;
+
+        // Solo el servidor elimina jugadores.
+        if (!Multiplayer.IsServer())
+            return;
+
+        Rpc(
+            nameof(RemovePlayerRpc),
+            peerId
+        );
+    }
+
+    // ============================================================
+    // HOST DESCONECTADO
+    // ============================================================
+
+    private void OnServerDisconnected()
+    {
+        // Evitar ejecutar esto más de una vez.
+        if (_returningToMenu)
+            return;
+
+        _returningToMenu = true;
+
+        GD.Print("================================");
+        GD.Print("EL HOST SE DESCONECTÓ");
+        GD.Print("VOLVIENDO AL MENÚ...");
+        GD.Print("================================");
+
+        // IMPORTANTE:
+        //
+        // NO hacemos:
+        //
+        // Multiplayer.PeerConnected -= ...
+        //
+        // aquí.
+        //
+        // _ExitTree() será el encargado de limpiar
+        // las señales.
+
+        // Cerramos el peer.
+        if (Multiplayer.HasMultiplayerPeer())
+        {
+            Multiplayer.MultiplayerPeer = null;
+        }
+
+        // Volver al menú.
+        Error error = GetTree().ChangeSceneToFile(
+            "res://Scenes/Control/menu.tscn"
+        );
+
+        if (error != Error.Ok)
+        {
+            GD.PushError(
+                $"No se pudo volver al menú: {error}"
+            );
+        }
+    }
+
+    // ============================================================
+    // CREAR PLAYER
+    // ============================================================
+
+    private void SpawnPlayer(long peerId)
+    {
+        // Solo el servidor crea jugadores.
+        if (!Multiplayer.IsServer())
+            return;
+
+        if (PlayersContainer == null)
+        {
+            GD.PushError(
+                "MAIN: PlayersContainer no está asignado."
+            );
+
+            return;
+        }
+
+        if (PlayerScene == null)
+        {
+            GD.PushError(
+                "MAIN: PlayerScene no está asignado."
+            );
+
+            return;
+        }
+
+        Vector2 position = GetSpawnPoint(peerId);
+
+        GD.Print(
+            $"MAIN: creando Player {peerId} " +
+            $"en {position}"
+        );
+
+        // IMPORTANTE:
+        // RPC y no llamada directa.
+        Rpc(
+            nameof(SpawnPlayerRpc),
+            peerId,
+            position
+        );
+    }
+
+    // ============================================================
+    // RPC CREAR PLAYER
+    // ============================================================
+
+    [Rpc(
+        MultiplayerApi.RpcMode.Authority,
+        CallLocal = true,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable
+    )]
+    private void SpawnPlayerRpc(
+        long peerId,
+        Vector2 position
+    )
+    {
+        if (PlayersContainer == null)
+        {
+            GD.PushError(
+                "MAIN: PlayersContainer no está asignado."
+            );
+
+            return;
+        }
+
+        if (PlayerScene == null)
+        {
+            GD.PushError(
+                "MAIN: PlayerScene no está asignado."
+            );
+
+            return;
+        }
+
+        // ========================================================
+        // EVITAR DUPLICADOS
+        // ========================================================
+
+        if (PlayersContainer.HasNode(
+                peerId.ToString()))
+        {
+            return;
+        }
+
+        // ========================================================
+        // INSTANCIAR PLAYER
+        // ========================================================
+
+        Player player =
+            PlayerScene.Instantiate<Player>();
+
+        player.Name = peerId.ToString();
+
+        player.Position = position;
+
+        // La autoridad del Player es el peer correspondiente.
+        player.SetMultiplayerAuthority(
+            (int)peerId
+        );
+
+        player.AddToGroup("player");
+
+        PlayersContainer.AddChild(player);
+
+        GD.Print(
+            $"MAIN: Player {peerId} creado."
+        );
+    }
+
+    // ============================================================
+    // RPC ELIMINAR PLAYER
+    // ============================================================
+
+    [Rpc(
+        MultiplayerApi.RpcMode.Authority,
+        CallLocal = true,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable
+    )]
+    private void RemovePlayerRpc(long peerId)
+    {
+        if (PlayersContainer == null)
+            return;
+
+        Node player =
+            PlayersContainer.GetNodeOrNull(
+                peerId.ToString()
+            );
+
+        if (player == null)
+            return;
+
+        GD.Print(
+            $"MAIN: eliminando Player {peerId}"
+        );
+
+        player.QueueFree();
+    }
+
+    // ============================================================
+    // OBTENER SPAWN
+    // ============================================================
+
+    private Vector2 GetSpawnPoint(long peerId)
+    {
+        if (SpawnPoints == null ||
+            SpawnPoints.Count == 0)
+        {
+            return Vector2.Zero;
+        }
+
+        int index =
+            (int)((peerId - 1) % SpawnPoints.Count);
+
+        return SpawnPoints[index];
+    }
+
+    // ============================================================
+    // EXIT TREE
+    // ============================================================
+
+    public override void _ExitTree()
+    {
+        // ========================================================
+        // IMPORTANTE
+        // ========================================================
+        //
+        // Este es EL ÚNICO lugar donde desconectamos
+        // las señales.
+        //
+        // Ya no las desconectamos dentro de
+        // OnServerDisconnected().
+        //
+        // ========================================================
+
+        if (!_signalsConnected)
+            return;
+
+        _signalsConnected = false;
+
+        if (Multiplayer != null)
+        {
+            Multiplayer.PeerConnected -= OnPeerConnected;
+            Multiplayer.PeerDisconnected -= OnPeerDisconnected;
+            Multiplayer.ServerDisconnected -= OnServerDisconnected;
+        }
+
+        GD.Print(
+            "MAIN: señales desconectadas correctamente."
+        );
+    }
 }

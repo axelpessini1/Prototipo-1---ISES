@@ -5,16 +5,24 @@ public partial class Menu : Control
     private const int Port = 7777;
     private const int MaxClients = 4;
 
-    [Export] public VBoxContainer Home { get; set; }
+    [Export]
+    public VBoxContainer Home { get; set; }
 
-    [Export] public VBoxContainer Join { get; set; }
+    [Export]
+    public VBoxContainer Join { get; set; }
 
-    [Export] public TextEdit TextIP { get; set; }
-
+    [Export]
+    public TextEdit TextIP { get; set; }
 
     // ============================================================
-    // READY
+    // ESTADO DE LAS SEÑALES
     // ============================================================
+
+    private bool connectedToServerSignalConnected = false;
+    private bool connectionFailedSignalConnected = false;
+
+    // Evita cambiar de escena más de una vez.
+    private bool changingScene = false;
 
     public override void _Ready()
     {
@@ -23,22 +31,62 @@ public partial class Menu : Control
 
         if (Join != null)
             Join.Visible = false;
+
+        // Por seguridad, limpiamos cualquier peer anterior.
+        if (Multiplayer.HasMultiplayerPeer())
+        {
+            Multiplayer.MultiplayerPeer = null;
+        }
     }
 
-
     // ============================================================
-    // MOSTRAR MENU JOIN
+    // CONECTAR SEÑALES
     // ============================================================
 
-    public void _on_join_pressed()
+    private void ConnectMultiplayerSignals()
     {
-        if (Home != null)
-            Home.Visible = false;
+        // Evitamos conectar dos veces la misma señal.
 
-        if (Join != null)
-            Join.Visible = true;
+        if (!connectedToServerSignalConnected)
+        {
+            Multiplayer.ConnectedToServer += OnConnectedToServer;
+            connectedToServerSignalConnected = true;
+        }
+
+        if (!connectionFailedSignalConnected)
+        {
+            Multiplayer.ConnectionFailed += OnConnectionFailed;
+            connectionFailedSignalConnected = true;
+        }
     }
 
+    // ============================================================
+    // DESCONECTAR SEÑALES
+    // ============================================================
+
+    private void DisconnectMultiplayerSignals()
+    {
+        if (connectedToServerSignalConnected)
+        {
+            Multiplayer.ConnectedToServer -= OnConnectedToServer;
+            connectedToServerSignalConnected = false;
+        }
+
+        if (connectionFailedSignalConnected)
+        {
+            Multiplayer.ConnectionFailed -= OnConnectionFailed;
+            connectionFailedSignalConnected = false;
+        }
+    }
+
+    // ============================================================
+    // BOTÓN: JUGAR / CREAR SERVIDOR
+    // ============================================================
+
+    public void _on_play_pressed()
+    {
+        CreateServer();
+    }
 
     // ============================================================
     // CREAR SERVIDOR
@@ -46,16 +94,19 @@ public partial class Menu : Control
 
     public void CreateServer()
     {
-        GD.Print("Creando servidor...");
+        if (changingScene)
+            return;
 
-        ENetMultiplayerPeer peer =
-            new ENetMultiplayerPeer();
+        GD.Print("================================");
+        GD.Print("CREANDO SERVIDOR...");
+        GD.Print("================================");
 
-        Error error =
-            peer.CreateServer(
-                Port,
-                MaxClients
-            );
+        ENetMultiplayerPeer peer = new ENetMultiplayerPeer();
+
+        Error error = peer.CreateServer(
+            Port,
+            MaxClients
+        );
 
         if (error != Error.Ok)
         {
@@ -75,23 +126,39 @@ public partial class Menu : Control
         GD.Print($"IP: {localIp}");
         GD.Print($"Puerto: {Port}");
         GD.Print($"Jugadores máximos: {MaxClients}");
-        GD.Print(
-            $"Peer ID: {Multiplayer.GetUniqueId()}"
-        );
+        GD.Print($"Peer ID: {Multiplayer.GetUniqueId()}");
         GD.Print("================================");
 
-        GetTree().ChangeSceneToFile(
-            "Scenes/2D/Maps/map.tscn"
-        );
+        ChangeToMap();
     }
 
+    // ============================================================
+    // BOTÓN: UNIRSE
+    // ============================================================
+
+    public void _on_join_pressed()
+    {
+        if (Home != null)
+            Home.Visible = false;
+
+        if (Join != null)
+            Join.Visible = true;
+    }
 
     // ============================================================
-    // UNIRSE A SERVIDOR
+    // CONECTARSE AL SERVIDOR
     // ============================================================
+
+    public void _on_join_server_pressed()
+    {
+        JoinServer();
+    }
 
     public void JoinServer()
     {
+        if (changingScene)
+            return;
+
         if (TextIP == null)
         {
             GD.PushError(
@@ -101,11 +168,8 @@ public partial class Menu : Control
             return;
         }
 
-        // Obtener IP escrita por el usuario.
-        string address =
-            TextIP.Text.Trim();
+        string address = TextIP.Text.Trim();
 
-        // Verificar que no esté vacío.
         if (string.IsNullOrWhiteSpace(address))
         {
             GD.PushError(
@@ -121,17 +185,21 @@ public partial class Menu : Control
         GD.Print($"Puerto: {Port}");
         GD.Print("================================");
 
+        // Si ya existe un peer, lo eliminamos antes
+        // de crear una nueva conexión.
+        if (Multiplayer.HasMultiplayerPeer())
+        {
+            Multiplayer.MultiplayerPeer = null;
+        }
 
         ENetMultiplayerPeer peer =
             new ENetMultiplayerPeer();
-
 
         Error error =
             peer.CreateClient(
                 address,
                 Port
             );
-
 
         if (error != Error.Ok)
         {
@@ -142,31 +210,16 @@ public partial class Menu : Control
             return;
         }
 
+        // IMPORTANTE:
+        // Conectamos las señales ANTES de asignar el peer.
+        ConnectMultiplayerSignals();
 
-        // Asignar la conexión a Godot.
         Multiplayer.MultiplayerPeer = peer;
-
-
-        // Cuando la conexión tenga éxito.
-        Multiplayer.ConnectedToServer +=
-            OnConnectedToServer;
-
-
-        // Cuando falle.
-        Multiplayer.ConnectionFailed +=
-            OnConnectionFailed;
-
-
-        // Cuando el servidor se desconecte.
-        Multiplayer.ServerDisconnected +=
-            OnServerDisconnected;
-
 
         GD.Print(
             "Conexión iniciada. Esperando servidor..."
         );
     }
-
 
     // ============================================================
     // CONECTADO AL SERVIDOR
@@ -174,18 +227,15 @@ public partial class Menu : Control
 
     private void OnConnectedToServer()
     {
+        if (changingScene)
+            return;
+
         GD.Print("================================");
         GD.Print("CONECTADO AL SERVIDOR");
-        GD.Print(
-            $"Mi ID: {Multiplayer.GetUniqueId()}"
-        );
+        GD.Print($"Mi ID: {Multiplayer.GetUniqueId()}");
         GD.Print("================================");
 
-
-        // Ahora podemos entrar al mapa.
-        GetTree().ChangeSceneToFile(
-            "Scenes/2D/Maps/map.tscn"
-        );
+        ChangeToMap();
     }
 
     // ============================================================
@@ -198,33 +248,8 @@ public partial class Menu : Control
         GD.Print("ERROR: NO SE PUDO CONECTAR");
         GD.Print("================================");
 
-
-        // Liberar la conexión.
+        // Limpiamos el peer.
         Multiplayer.MultiplayerPeer = null;
-
-
-        // Volver al menú principal.
-        if (Home != null)
-            Home.Visible = true;
-
-        if (Join != null)
-            Join.Visible = false;
-    }
-
-
-    // ============================================================
-    // SERVIDOR DESCONECTADO
-    // ============================================================
-
-    private void OnServerDisconnected()
-    {
-        GD.Print("================================");
-        GD.Print("SERVIDOR DESCONECTADO");
-        GD.Print("================================");
-
-
-        Multiplayer.MultiplayerPeer = null;
-
 
         if (Home != null)
             Home.Visible = true;
@@ -233,50 +258,35 @@ public partial class Menu : Control
             Join.Visible = false;
     }
 
-
     // ============================================================
-    // OBTENER IP LOCAL
+    // CAMBIAR AL MAPA
     // ============================================================
 
-    private string GetLocalIPv4()
+    private void ChangeToMap()
     {
-        foreach (string address in IP.GetLocalAddresses())
-        {
-            // Ignorar IPv6.
-            if (!address.Contains("."))
-                continue;
+        if (changingScene)
+            return;
 
-            // Ignorar localhost.
-            if (address.StartsWith("127."))
-                continue;
+        changingScene = true;
 
-            // Ignorar algunas interfaces virtuales comunes.
-            if (address.StartsWith("169.254."))
-                continue;
+        GD.Print("Cambiando al mapa...");
 
-            return address;
-        }
-
-        return "127.0.0.1";
-    }
-
-
-    // ============================================================
-    // BOTÓN JUGAR
-    // ============================================================
-
-    public void _on_play_pressed()
-    {
-        GD.Print(
-            "Botón JUGAR presionado."
+        Error error = GetTree().ChangeSceneToFile(
+            "res://Scenes/2D/Maps/map.tscn"
         );
 
-        CreateServer();
+        if (error != Error.Ok)
+        {
+            GD.PushError(
+                $"No se pudo cambiar al mapa: {error}"
+            );
+
+            changingScene = false;
+        }
     }
 
-
     // ============================================================
-    // VOLVER
+    // BOTÓN VOLVER / SALIR
     // ============================================================
 
     public void _on_exit_pressed()
@@ -288,17 +298,35 @@ public partial class Menu : Control
             Join.Visible = false;
     }
 
-
     // ============================================================
-    // BOTÓN UNIRSE AL SERVIDOR
+    // OBTENER IP LOCAL
     // ============================================================
 
-    public void _on_join_server_pressed()
+    private string GetLocalIPv4()
     {
-        GD.Print(
-            "Botón UNIRSE presionado."
-        );
+        foreach (string address in IP.GetLocalAddresses())
+        {
+            if (!address.Contains("."))
+                continue;
 
-        JoinServer();
+            if (address.StartsWith("127."))
+                continue;
+
+            if (address.StartsWith("169.254."))
+                continue;
+
+            return address;
+        }
+
+        return "127.0.0.1";
+    }
+
+    // ============================================================
+    // LIMPIEZA
+    // ============================================================
+
+    public override void _ExitTree()
+    {
+        DisconnectMultiplayerSignals();
     }
 }
